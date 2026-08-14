@@ -19,4 +19,11 @@ public interface TicketCategoryRepository extends JpaRepository<TicketCategory, 
     @Modifying
     @Query("UPDATE TicketCategory t SET t.availableQuantity = t.availableQuantity - :qty WHERE t.id = :id AND t.availableQuantity >= :qty")
     int decrementAvailableQuantity(@Param("id") Long id, @Param("qty") int qty);
+
+    /**
+     * Restores (increments) availableQuantity after a booking is cancelled or expired.
+     */
+    @Modifying
+    @Query("UPDATE TicketCategory t SET t.availableQuantity = t.availableQuantity + :qty WHERE t.id = :id")
+    void incrementAvailableQuantity(@Param("id") Long id, @Param("qty") int qty);
 }
