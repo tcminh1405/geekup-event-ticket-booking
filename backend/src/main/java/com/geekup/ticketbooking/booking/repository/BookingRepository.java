@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
@@ -18,12 +19,19 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
 
     List<Booking> findAllByStateAndPaymentDeadlineBefore(BookingState state, LocalDateTime deadline);
 
-    // Count active (CONFIRMED + AWAITING_PAYMENT) bookings for inventory stats
+    @Modifying
+    @Query("UPDATE Booking b SET b.state = :target WHERE b.id = :id AND b.state = :expected")
+    int transitionStateIfCurrent(@Param("id") Long id,
+                                 @Param("expected") BookingState expected,
+                                 @Param("target") BookingState target);
+
+    // Count inventory that is no longer available: pending reservations as well
+    // as bookings being paid or confirmed.
     @Query("""
             SELECT COALESCE(SUM(bi.quantity), 0)
             FROM BookingItem bi
             WHERE bi.ticketCategory.id = :ticketCategoryId
-              AND bi.booking.state IN ('CONFIRMED', 'AWAITING_PAYMENT')
+              AND bi.booking.state IN ('PENDING', 'AWAITING_PAYMENT', 'CONFIRMED')
             """)
     int countSoldQuantityByTicketCategoryId(@Param("ticketCategoryId") Long ticketCategoryId);
 }

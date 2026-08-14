@@ -7,6 +7,7 @@ import com.geekup.ticketbooking.booking.dto.BookingResponse;
 import com.geekup.ticketbooking.booking.entity.Booking;
 import com.geekup.ticketbooking.booking.entity.BookingItem;
 import com.geekup.ticketbooking.booking.repository.BookingRepository;
+import com.geekup.ticketbooking.booking.service.BookingService;
 import com.geekup.ticketbooking.booking.state.BookingState;
 import com.geekup.ticketbooking.concert.dto.ConcertDetailResponse;
 import com.geekup.ticketbooking.concert.dto.TicketCategoryResponse;
@@ -49,6 +50,7 @@ public class AdminService {
     private final ConcertRepository        concertRepository;
     private final TicketCategoryRepository ticketCategoryRepository;
     private final BookingRepository        bookingRepository;
+    private final BookingService           bookingService;
     private final VoucherCampaignRepository campaignRepository;
     private final VoucherRepository        voucherRepository;
     private final InventoryCache           inventoryCache;
@@ -139,13 +141,16 @@ public class AdminService {
 
         List<InventoryStatsResponse.TicketCategoryInventory> stats = categories.stream()
                 .map(cat -> {
-                    int soldCount = bookingRepository.countSoldQuantityByTicketCategoryId(cat.getId());
+                    // availableQuantity is the inventory source of truth. It
+                    // already excludes PENDING reservations, unlike a query of
+                    // only paid bookings.
+                    int reservedOrSoldCount = cat.getTotalQuantity() - cat.getAvailableQuantity();
                     return InventoryStatsResponse.TicketCategoryInventory.builder()
                             .ticketCategoryId(cat.getId())
                             .name(cat.getName())
                             .totalQuantity(cat.getTotalQuantity())
-                            .soldCount(soldCount)
-                            .availableQuantity(cat.getTotalQuantity() - soldCount)
+                            .soldCount(reservedOrSoldCount)
+                            .availableQuantity(cat.getAvailableQuantity())
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -168,15 +173,16 @@ public class AdminService {
                         "TICKET_CATEGORY_NOT_FOUND",
                         "Ticket category with id " + categoryId + " was not found."));
 
-        int soldCount = bookingRepository.countSoldQuantityByTicketCategoryId(categoryId);
+        int reservedOrSoldCount = category.getTotalQuantity() - category.getAvailableQuantity();
 
-        if (request.getNewQuantity() < soldCount) {
+        if (request.getNewQuantity() < reservedOrSoldCount) {
             throw new ValidationException(
                     "QUANTITY_BELOW_SOLD",
-                    "New quantity cannot be less than the number of sold tickets (" + soldCount + ").");
+                    "New quantity cannot be less than tickets already reserved or sold ("
+                            + reservedOrSoldCount + ").");
         }
 
-        int newAvailable = request.getNewQuantity() - soldCount;
+        int newAvailable = request.getNewQuantity() - reservedOrSoldCount;
         category.setTotalQuantity(request.getNewQuantity());
         category.setAvailableQuantity(newAvailable);
         TicketCategory saved = ticketCategoryRepository.save(category);
@@ -234,19 +240,8 @@ public class AdminService {
         booking.setState(targetState);
 
         if (targetState == BookingState.CANCELLED) {
-            // Restore DB quantity and Redis cache for each booking item
-            for (BookingItem item : booking.getItems()) {
-                Long catId = item.getTicketCategory().getId();
-                int  qty   = item.getQuantity();
-
-                ticketCategoryRepository.incrementAvailableQuantity(catId, qty);
-                inventoryCache.incrementInventory(catId, qty);
-            }
-
-            // Restore voucher usage if one was applied
-            if (booking.getVoucher() != null) {
-                voucherService.restoreVoucherUsage(booking.getVoucher());
-            }
+            // Reuse the booking flow so cache updates run after commit.
+            bookingService.restoreInventory(booking);
 
             log.info("[AdminService] Booking {} cancelled from state {}; inventory restored.",
                     bookingId, previousState);

@@ -23,7 +23,9 @@ import java.util.Optional;
 public class IdempotencyService {
 
     private static final String KEY_PREFIX = "idempotency:";
+    private static final String IN_FLIGHT_PREFIX = "idempotency:in-flight:";
     private static final Duration TTL = Duration.ofHours(24);
+    private static final Duration IN_FLIGHT_TTL = Duration.ofMinutes(2);
 
     private final StringRedisTemplate redisTemplate;
 
@@ -68,6 +70,28 @@ public class IdempotencyService {
             log.debug("[IdempotencyService] Stored idempotency response: key={}", key);
         } catch (Exception ex) {
             log.warn("[IdempotencyService] Redis failure on store: key={} — failing open (response not cached)", key, ex);
+        }
+    }
+
+    /** Atomically claim processing of a previously unseen key. */
+    public boolean tryStartProcessing(String key) {
+        try {
+            Boolean claimed = redisTemplate.opsForValue().setIfAbsent(
+                    IN_FLIGHT_PREFIX + key, "1", IN_FLIGHT_TTL);
+            return Boolean.TRUE.equals(claimed);
+        } catch (Exception ex) {
+            // PostgreSQL's unique constraint remains the final fallback.
+            log.warn("[IdempotencyService] Redis failure while claiming key={} — failing open", key, ex);
+            return true;
+        }
+    }
+
+    /** Releases a failed request so its idempotency key can be retried. */
+    public void clearInFlight(String key) {
+        try {
+            redisTemplate.delete(IN_FLIGHT_PREFIX + key);
+        } catch (Exception ex) {
+            log.warn("[IdempotencyService] Redis failure while releasing key={}", key, ex);
         }
     }
 }

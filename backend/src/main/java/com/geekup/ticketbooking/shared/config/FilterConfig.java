@@ -2,6 +2,7 @@ package com.geekup.ticketbooking.shared.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.geekup.ticketbooking.shared.filter.IdempotencyFilter;
+import com.geekup.ticketbooking.shared.filter.AdminRoleFilter;
 import com.geekup.ticketbooking.shared.filter.RateLimitFilter;
 import com.geekup.ticketbooking.shared.filter.UserIdHeaderFilter;
 import com.geekup.ticketbooking.shared.idempotency.IdempotencyService;
@@ -53,8 +54,18 @@ public class FilterConfig {
         FilterRegistrationBean<IdempotencyFilter> registration = new FilterRegistrationBean<>();
         registration.setFilter(new IdempotencyFilter(idempotencyService, objectMapper));
         registration.addUrlPatterns("/*");
-        registration.setOrder(3);
+        registration.setOrder(4);
         registration.setName("idempotencyFilter");
+        return registration;
+    }
+
+    @Bean
+    public FilterRegistrationBean<AdminRoleFilter> adminRoleFilter() {
+        FilterRegistrationBean<AdminRoleFilter> registration = new FilterRegistrationBean<>();
+        registration.setFilter(new AdminRoleFilter(objectMapper));
+        registration.addUrlPatterns("/api/v1/admin/*");
+        registration.setOrder(3);
+        registration.setName("adminRoleFilter");
         return registration;
     }
 }

@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Distributed lock service for voucher application.
  *
- * <p>Key pattern: {@code lock:voucher:{userId}:{voucherId}}</p>
+ * <p>Key pattern: {@code lock:voucher:{voucherId}}</p>
  * <p>Uses Redisson {@link RLock} with a 3-second wait and 10-second lease time
  * to prevent the same user from concurrently applying the same voucher.</p>
  */
@@ -35,8 +35,8 @@ public class VoucherLockService {
      * @return the acquired {@link RLock} (caller must release it in a finally block)
      * @throws ServiceBusyException if the lock cannot be acquired within {@value #WAIT_SECONDS} seconds
      */
-    public RLock acquireLock(Long userId, Long voucherId) {
-        String lockKey = KEY_PREFIX + userId + ":" + voucherId;
+    public RLock acquireLock(Long voucherId) {
+        String lockKey = KEY_PREFIX + voucherId;
         RLock lock = redissonClient.getLock(lockKey);
         try {
             boolean acquired = lock.tryLock(WAIT_SECONDS, LEASE_SECONDS, TimeUnit.SECONDS);

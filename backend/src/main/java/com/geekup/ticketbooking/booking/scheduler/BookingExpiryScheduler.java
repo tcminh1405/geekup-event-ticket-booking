@@ -2,13 +2,12 @@ package com.geekup.ticketbooking.booking.scheduler;
 
 import com.geekup.ticketbooking.booking.entity.Booking;
 import com.geekup.ticketbooking.booking.repository.BookingRepository;
-import com.geekup.ticketbooking.booking.service.BookingService;
+import com.geekup.ticketbooking.booking.service.BookingExpiryService;
 import com.geekup.ticketbooking.booking.state.BookingState;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -34,7 +33,7 @@ import java.util.List;
 public class BookingExpiryScheduler {
 
     private final BookingRepository bookingRepository;
-    private final BookingService    bookingService;
+    private final BookingExpiryService bookingExpiryService;
 
     /**
      * Find all PENDING bookings whose {@code paymentDeadline} is in the past,
@@ -58,42 +57,11 @@ public class BookingExpiryScheduler {
 
         for (Booking booking : overdueBookings) {
             try {
-                expireBooking(booking);
+                bookingExpiryService.expire(booking.getId());
             } catch (Exception ex) {
                 log.error("[BookingExpiryScheduler] Failed to expire bookingId={}: {}",
                         booking.getId(), ex.getMessage(), ex);
             }
         }
-    }
-
-    /**
-     * Expire a single booking and restore its resources. Wrapped in its own
-     * {@code @Transactional} so each booking is handled independently.
-     *
-     * @param booking the PENDING booking to expire
-     */
-    @Transactional
-    public void expireBooking(Booking booking) {
-        // Re-fetch to ensure we have the latest state and avoid stale data
-        Booking fresh = bookingRepository.findById(booking.getId()).orElse(null);
-        if (fresh == null) {
-            log.warn("[BookingExpiryScheduler] Booking {} no longer exists, skipping.", booking.getId());
-            return;
-        }
-
-        // Guard: another thread/instance may have already transitioned this booking
-        if (fresh.getState() != BookingState.PENDING) {
-            log.debug("[BookingExpiryScheduler] Booking {} is now in state {}; skipping expiry.",
-                    fresh.getId(), fresh.getState());
-            return;
-        }
-
-        fresh.setState(BookingState.EXPIRED);
-        bookingRepository.save(fresh);
-
-        // Restore inventory (DB + cache) and voucher
-        bookingService.restoreInventory(fresh);
-
-        log.info("[BookingExpiryScheduler] Booking {} expired and inventory restored.", fresh.getId());
     }
 }

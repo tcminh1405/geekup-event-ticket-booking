@@ -215,7 +215,7 @@ public class BookingService {
      * @param request   the payment request DTO
      * @return detailed booking response on successful payment
      */
-    @Transactional
+    @Transactional(noRollbackFor = {PaymentFailedException.class, PaymentGatewayTimeoutException.class})
     public BookingDetailResponse pay(Long userId, Long bookingId, PaymentRequest request) {
         // Step 1 — Load booking
         Booking booking = bookingRepository.findById(bookingId)
@@ -236,9 +236,14 @@ public class BookingService {
                             + " and cannot be paid. Only PENDING bookings can be paid.");
         }
 
-        // Step 2 — Transition to AWAITING_PAYMENT
+        // Step 2 — claim the payment transition atomically. This prevents two
+        // retries from charging the same booking concurrently.
+        if (bookingRepository.transitionStateIfCurrent(bookingId, BookingState.PENDING,
+                BookingState.AWAITING_PAYMENT) == 0) {
+            throw new ConflictException("INVALID_BOOKING_STATE",
+                    "Booking " + bookingId + " is already being paid or has been processed.");
+        }
         booking.setState(BookingState.AWAITING_PAYMENT);
-        bookingRepository.save(booking);
 
         // Call mock payment gateway — may throw PaymentFailedException or PaymentGatewayTimeoutException
         try {
@@ -263,8 +268,10 @@ public class BookingService {
         } catch (PaymentGatewayTimeoutException e) {
             // Step 5 — TIMEOUT → revert to PENDING; do not restore inventory
             log.warn("[BookingService] Payment gateway timeout for bookingId={}: {}", bookingId, e.getMessage());
-            booking.setState(BookingState.PENDING);
-            bookingRepository.save(booking);
+            // The payment claim was a JPQL bulk update, so explicitly update
+            // the database rather than relying on this entity's stale snapshot.
+            bookingRepository.transitionStateIfCurrent(bookingId,
+                    BookingState.AWAITING_PAYMENT, BookingState.PENDING);
             throw e;
         }
     }
@@ -321,13 +328,7 @@ public class BookingService {
             // Restore DB quantity
             ticketCategoryRepository.incrementAvailableQuantity(categoryId, qty);
 
-            // Update cache (fire-and-forget, non-fatal)
-            try {
-                inventoryCache.incrementInventory(categoryId, qty);
-            } catch (Exception ex) {
-                log.error("[BookingService] Failed to update inventory cache for categoryId={}: {}",
-                        categoryId, ex.getMessage());
-            }
+            registerPostCommitInventoryCacheIncrement(categoryId, qty);
         }
 
         // Restore voucher usage if one was applied
@@ -365,6 +366,15 @@ public class BookingService {
                                 category.getId(), ex.getMessage());
                     }
                 }
+            }
+        });
+    }
+
+    private void registerPostCommitInventoryCacheIncrement(Long categoryId, int qty) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                inventoryCache.incrementInventory(categoryId, qty);
             }
         });
     }

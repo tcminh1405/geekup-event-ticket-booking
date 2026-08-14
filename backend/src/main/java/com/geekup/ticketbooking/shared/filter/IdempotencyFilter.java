@@ -70,6 +70,13 @@ public class IdempotencyFilter extends OncePerRequestFilter {
             return;
         }
 
+        // Claim before running the controller. A cache check followed by a
+        // later store is otherwise vulnerable to simultaneous retries.
+        if (!idempotencyService.tryStartProcessing(idempotencyKey)) {
+            writeInProgressResponse(response);
+            return;
+        }
+
         // 3. New key — wrap response to capture the body
         ContentCachingResponseWrapper wrappedResponse = new ContentCachingResponseWrapper(response);
         try {
@@ -86,6 +93,8 @@ public class IdempotencyFilter extends OncePerRequestFilter {
                     log.debug("[IdempotencyFilter] Stored idempotency response: key={}, status={}",
                             idempotencyKey, status);
                 }
+            } else {
+                idempotencyService.clearInFlight(idempotencyKey);
             }
 
             // Always copy the wrapped response body back to the real response
@@ -108,5 +117,13 @@ public class IdempotencyFilter extends OncePerRequestFilter {
         response.setStatus(HttpServletResponse.SC_OK);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.getWriter().write(json);
+    }
+
+    private void writeInProgressResponse(HttpServletResponse response) throws IOException {
+        response.setStatus(HttpServletResponse.SC_CONFLICT);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        ApiResponse<?> body = ApiResponse.error("IDEMPOTENCY_REQUEST_IN_PROGRESS",
+                "A request with this Idempotency-Key is already being processed. Retry shortly.");
+        response.getWriter().write(objectMapper.writeValueAsString(body));
     }
 }

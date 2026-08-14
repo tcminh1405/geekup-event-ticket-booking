@@ -29,6 +29,7 @@ Tài liệu này định nghĩa rõ ràng các giả định (Assumptions), ph�
 
 ### 2.1 Identity & User Context (Xác thực người dùng)
 - Client bắt buộc gửi Header `X-User-Id: <Long>` đại diện cho ID của người dùng thực hiện request.
+- Các endpoint `/api/v1/admin/**` là thao tác nội bộ và yêu cầu thêm `X-Role: ADMIN` hoặc `X-Role: OPERATOR`. Đây là role gate mô phỏng; production phải thay bằng authentication/authorization thực tế.
 - Nếu không truyền `X-User-Id`, hệ thống tự động gán user mặc định (người dùng ẩn danh) hoặc trả về lỗi theo từng endpoint quy định.
 
 ### 2.2 Payment Gateway Mocking (Thanh toán giả lập)

@@ -85,7 +85,9 @@ public class VoucherService {
         RLock lock = null;
         try {
             // Step 1 — Acquire distributed lock (Req 4.5)
-            lock = voucherLockService.acquireLock(userId, voucher.getId());
+            // Voucher codes are single-use. The lock must therefore be shared by
+            // every user attempting the same code, not scoped to a single user.
+            lock = voucherLockService.acquireLock(voucher.getId());
 
             // Re-fetch the voucher inside the lock to ensure we read the latest state
             voucher = voucherRepository.findById(voucher.getId())
@@ -103,10 +105,10 @@ public class VoucherService {
             }
 
             // Step 3 — Validate voucher not already used by this user (Req 4.3)
-            if (voucher.isUsed() && userId.equals(voucher.getUsedByUserId())) {
+            if (voucher.isUsed()) {
                 throw new ConflictException(
                         "VOUCHER_ALREADY_USED",
-                        "You have already used voucher '" + voucher.getCode() + "'.");
+                        "Voucher '" + voucher.getCode() + "' has already been used.");
             }
 
             // Step 4 — Validate campaign usage count < maxUsageCount (Req 4.4)
@@ -127,17 +129,22 @@ public class VoucherService {
                                 + minAmount + " for this voucher.");
             }
 
+            // Reserve a campaign slot atomically. The pre-check above produces a
+            // helpful error for the common case; this update protects concurrent
+            // requests for different voucher codes in the same campaign.
+            if (campaignRepository.consumeUsageSlot(campaign.getId()) == 0) {
+                throw new ConflictException(
+                        "VOUCHER_EXHAUSTED",
+                        "Voucher campaign '" + campaign.getName() + "' has reached its maximum usage limit.");
+            }
+
             // Step 6 — Mark voucher as used
             voucher.setUsed(true);
             voucher.setUsedByUserId(userId);
             voucher.setUsedAt(LocalDateTime.now());
             voucherRepository.save(voucher);
 
-            // Step 7 — Increment campaign currentUsageCount
-            campaign.setCurrentUsageCount(campaign.getCurrentUsageCount() + 1);
-            campaignRepository.save(campaign);
-
-            // Step 8 — Calculate discounted amount (Req 4.2)
+            // Step 7 — Calculate discounted amount (Req 4.2)
             BigDecimal discountedAmount = calculateDiscountedAmount(bookingAmount, campaign);
             BigDecimal discountAmount   = bookingAmount.subtract(discountedAmount);
 
@@ -178,12 +185,10 @@ public class VoucherService {
         voucherRepository.save(voucher);
 
         VoucherCampaign campaign = voucher.getCampaign();
-        int newCount = Math.max(0, campaign.getCurrentUsageCount() - 1);
-        campaign.setCurrentUsageCount(newCount);
-        campaignRepository.save(campaign);
+        campaignRepository.restoreUsageSlot(campaign.getId());
 
         log.info("[VoucherService] Voucher '{}' usage restored. Campaign '{}' usage now: {}",
-                voucher.getCode(), campaign.getName(), newCount);
+                voucher.getCode(), campaign.getName(), "decremented atomically");
     }
 
     // -------------------------------------------------------------------------
