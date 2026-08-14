@@ -1,64 +1,156 @@
 {
   "info": {
     "_postman_id": "af60ea18-7da0-4cd6-9654-9eb9abc38223",
-    "name": "Concert Ticket Booking - Local API",
-    "description": "Run requests in order. Seeded concert IDs are discovered dynamically by the first two customer requests.",
+    "name": "Concert Ticket Booking - Regression Tests",
+    "description": "Run folders in numeric order. The collection creates isolated test concerts and vouchers. Payment FAILED/TIMEOUT and expiry have explicit setup instructions in their request descriptions.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
-  "variable": [],
   "item": [
     {
-      "name": "Customer flow",
+      "name": "01 - Customer browse and authorization",
       "item": [
         {
-          "name": "1. List published concerts",
+          "name": "List published concerts",
           "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/concerts" },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "if (body.data && body.data.content && body.data.content.length) pm.environment.set('concertId', body.data.content[0].id);"] } }]
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('lists published concerts', () => pm.response.to.have.status(200));", "const data = pm.response.json().data;", "pm.expect(data.content.length).to.be.above(0);", "pm.environment.set('concertId', data.content[0].id);"] } }]
         },
         {
-          "name": "2. Get concert detail (save category ID)",
+          "name": "Get concert detail and save category",
           "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/concerts/{{concertId}}" },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "if (body.data && body.data.ticketCategories && body.data.ticketCategories.length) pm.environment.set('ticketCategoryId', body.data.ticketCategories[0].id);"] } }]
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('returns ticket categories', () => pm.response.to.have.status(200));", "const categories = pm.response.json().data.ticketCategories;", "pm.expect(categories.length).to.be.above(0);", "pm.environment.set('ticketCategoryId', categories[0].id);"] } }]
         },
         {
-          "name": "3. Reserve tickets",
-          "event": [{ "listen": "prerequest", "script": { "exec": ["pm.environment.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));" ] } }, { "listen": "test", "script": { "exec": ["pm.test('201 Created', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "if (body.data) pm.environment.set('bookingId', body.data.bookingId);"] } }],
-          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{customerId}}" }, { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }], "body": { "mode": "raw", "raw": "{\n  \"concertId\": {{concertId}},\n  \"items\": [{ \"ticketCategoryId\": {{ticketCategoryId}}, \"quantity\": 1 }]\n}" }, "url": "{{baseUrl}}/api/v1/bookings/reserve" }
-        },
-        {
-          "name": "4. Pay reservation",
-          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{customerId}}" }], "body": { "mode": "raw", "raw": "{ \"paymentMethod\": \"MOCK\" }" }, "url": "{{baseUrl}}/api/v1/bookings/{{bookingId}}/pay" },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"] } }]
-        },
-        {
-          "name": "5. Get my booking",
-          "request": { "method": "GET", "header": [{ "key": "X-User-Id", "value": "{{customerId}}" }], "url": "{{baseUrl}}/api/v1/bookings/{{bookingId}}" }
+          "name": "Admin endpoint without role is forbidden",
+          "request": { "method": "GET", "header": [{ "key": "X-User-Id", "value": "{{operatorId}}" }], "url": "{{baseUrl}}/api/v1/admin/bookings" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('requires operator role', () => pm.response.to.have.status(403));"] } }]
         }
       ]
     },
     {
-      "name": "Operator flow",
+      "name": "02 - Reservation idempotency and ownership",
       "item": [
         {
-          "name": "6. Get inventory",
-          "request": { "method": "GET", "header": [{ "key": "X-User-Id", "value": "{{operatorId}}" }, { "key": "X-Role", "value": "{{operatorRole}}" }], "url": "{{baseUrl}}/api/v1/admin/concerts/{{concertId}}/inventory" }
+          "name": "Reserve requires Idempotency-Key",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{customerId}}" }], "body": { "mode": "raw", "raw": "{\n  \"concertId\": {{concertId}},\n  \"items\": [{ \"ticketCategoryId\": {{ticketCategoryId}}, \"quantity\": 1 }]\n}" }, "url": "{{baseUrl}}/api/v1/bookings/reserve" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('rejects missing key', () => pm.response.to.have.status(400));", "pm.expect(pm.response.json().error.code).to.eql('MISSING_IDEMPOTENCY_KEY');"] } }]
         },
         {
-          "name": "7. List bookings",
-          "request": { "method": "GET", "header": [{ "key": "X-User-Id", "value": "{{operatorId}}" }, { "key": "X-Role", "value": "{{operatorRole}}" }], "url": "{{baseUrl}}/api/v1/admin/bookings?page=0&size=20" }
+          "name": "Reserve with a stable idempotency key",
+          "event": [{ "listen": "prerequest", "script": { "exec": ["pm.environment.set('duplicateKey', pm.variables.replaceIn('{{$guid}}'));" ] } }, { "listen": "test", "script": { "exec": ["pm.test('creates reservation', () => pm.response.to.have.status(201));", "const bookingId = pm.response.json().data.bookingId;", "pm.environment.set('duplicateBookingId', bookingId);"] } }],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{customerId}}" }, { "key": "Idempotency-Key", "value": "{{duplicateKey}}" }], "body": { "mode": "raw", "raw": "{\n  \"concertId\": {{concertId}},\n  \"items\": [{ \"ticketCategoryId\": {{ticketCategoryId}}, \"quantity\": 1 }]\n}" }, "url": "{{baseUrl}}/api/v1/bookings/reserve" }
         },
         {
-          "name": "8. Create voucher campaign",
-          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{operatorId}}" }, { "key": "X-Role", "value": "{{operatorRole}}" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Campaign {{$timestamp}}\",\n  \"discountType\": \"PERCENTAGE\",\n  \"discountValue\": 10,\n  \"minBookingAmount\": 100000,\n  \"maxUsageCount\": 20,\n  \"startDate\": \"2026-01-01\",\n  \"endDate\": \"2027-12-31\"\n}" }, "url": "{{baseUrl}}/api/v1/admin/voucher-campaigns" },
-          "event": [{ "listen": "test", "script": { "exec": ["pm.test('201 Created', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "if (body.data) pm.environment.set('voucherCampaignId', body.data.id);"] } }]
+          "name": "Retry same reservation does not create another booking",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{customerId}}" }, { "key": "Idempotency-Key", "value": "{{duplicateKey}}" }], "body": { "mode": "raw", "raw": "{\n  \"concertId\": {{concertId}},\n  \"items\": [{ \"ticketCategoryId\": {{ticketCategoryId}}, \"quantity\": 1 }]\n}" }, "url": "{{baseUrl}}/api/v1/bookings/reserve" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('replays existing result', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().data.bookingId).to.eql(Number(pm.environment.get('duplicateBookingId')));"] } }]
         },
         {
-          "name": "9. Generate voucher codes",
-          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{operatorId}}" }, { "key": "X-Role", "value": "{{operatorRole}}" }], "body": { "mode": "raw", "raw": "{ \"count\": 3 }" }, "url": "{{baseUrl}}/api/v1/admin/voucher-campaigns/{{voucherCampaignId}}/vouchers" }
+          "name": "Another customer cannot read this booking",
+          "request": { "method": "GET", "header": [{ "key": "X-User-Id", "value": "{{secondCustomerId}}" }], "url": "{{baseUrl}}/api/v1/bookings/{{duplicateBookingId}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('enforces ownership', () => pm.response.to.have.status(403));"] } }]
+        }
+      ]
+    },
+    {
+      "name": "03 - Voucher lifecycle",
+      "item": [
+        {
+          "name": "Create active single-use voucher campaign",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{operatorId}}" }, { "key": "X-Role", "value": "{{operatorRole}}" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Voucher {{$timestamp}}\",\n  \"discountType\": \"FIXED\",\n  \"discountValue\": 1000,\n  \"minBookingAmount\": 0,\n  \"maxUsageCount\": 1,\n  \"startDate\": \"2026-01-01\",\n  \"endDate\": \"2027-12-31\"\n}" }, "url": "{{baseUrl}}/api/v1/admin/voucher-campaigns" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('campaign created', () => pm.response.to.have.status(201));", "pm.environment.set('voucherCampaignId', pm.response.json().data.id);"] } }]
         },
         {
-          "name": "10. Get voucher campaign stats",
-          "request": { "method": "GET", "header": [{ "key": "X-User-Id", "value": "{{operatorId}}" }, { "key": "X-Role", "value": "{{operatorRole}}" }], "url": "{{baseUrl}}/api/v1/admin/voucher-campaigns/{{voucherCampaignId}}/stats" }
+          "name": "Generate voucher and save code",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{operatorId}}" }, { "key": "X-Role", "value": "{{operatorRole}}" }], "body": { "mode": "raw", "raw": "{ \"count\": 1 }" }, "url": "{{baseUrl}}/api/v1/admin/voucher-campaigns/{{voucherCampaignId}}/vouchers" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('returns generated code', () => pm.response.to.have.status(201));", "pm.environment.set('voucherCode', pm.response.json().data.codes[0]);"] } }]
+        },
+        {
+          "name": "Reserve with voucher applies discount",
+          "event": [{ "listen": "prerequest", "script": { "exec": ["pm.environment.set('voucherKey', pm.variables.replaceIn('{{$guid}}'));" ] } }, { "listen": "test", "script": { "exec": ["pm.test('discount is applied', () => pm.response.to.have.status(201));", "const result = pm.response.json().data;", "pm.expect(Number(result.discountAmount)).to.be.above(0);", "pm.environment.set('voucherBookingId', result.bookingId);"] } }],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{customerId}}" }, { "key": "Idempotency-Key", "value": "{{voucherKey}}" }], "body": { "mode": "raw", "raw": "{\n  \"concertId\": {{concertId}},\n  \"voucherCode\": \"{{voucherCode}}\",\n  \"items\": [{ \"ticketCategoryId\": {{ticketCategoryId}}, \"quantity\": 1 }]\n}" }, "url": "{{baseUrl}}/api/v1/bookings/reserve" }
+        },
+        {
+          "name": "Voucher reuse is rejected",
+          "event": [{ "listen": "prerequest", "script": { "exec": ["pm.environment.set('voucherReuseKey', pm.variables.replaceIn('{{$guid}}'));" ] } }],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{secondCustomerId}}" }, { "key": "Idempotency-Key", "value": "{{voucherReuseKey}}" }], "body": { "mode": "raw", "raw": "{\n  \"concertId\": {{concertId}},\n  \"voucherCode\": \"{{voucherCode}}\",\n  \"items\": [{ \"ticketCategoryId\": {{ticketCategoryId}}, \"quantity\": 1 }]\n}" }, "url": "{{baseUrl}}/api/v1/bookings/reserve" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('single-use voucher is rejected', () => pm.response.to.have.status(409));", "pm.expect(pm.response.json().error.code).to.eql('VOUCHER_ALREADY_USED');"] } }]
+        }
+      ]
+    },
+    {
+      "name": "04 - Oversell and inventory",
+      "item": [
+        {
+          "name": "Create one-ticket concert",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{operatorId}}" }, { "key": "X-Role", "value": "{{operatorRole}}" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Limited {{$timestamp}}\",\n  \"venue\": \"Test venue\",\n  \"concertDate\": \"2027-12-31T20:00:00\",\n  \"ticketCategories\": [{ \"name\": \"ONLY-ONE\", \"price\": 100000, \"quantity\": 1 }]\n}" }, "url": "{{baseUrl}}/api/v1/admin/concerts" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('limited concert created', () => pm.response.to.have.status(201));", "const data = pm.response.json().data;", "pm.environment.set('limitedConcertId', data.id);", "pm.environment.set('limitedCategoryId', data.ticketCategories[0].id);"] } }]
+        },
+        {
+          "name": "Publish one-ticket concert",
+          "request": { "method": "POST", "header": [{ "key": "X-User-Id", "value": "{{operatorId}}" }, { "key": "X-Role", "value": "{{operatorRole}}" }], "url": "{{baseUrl}}/api/v1/admin/concerts/{{limitedConcertId}}/publish" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('concert published', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "First customer reserves the only ticket",
+          "event": [{ "listen": "prerequest", "script": { "exec": ["pm.environment.set('limitedKey1', pm.variables.replaceIn('{{$guid}}'));" ] } }],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{customerId}}" }, { "key": "Idempotency-Key", "value": "{{limitedKey1}}" }], "body": { "mode": "raw", "raw": "{ \"concertId\": {{limitedConcertId}}, \"items\": [{ \"ticketCategoryId\": {{limitedCategoryId}}, \"quantity\": 1 }] }" }, "url": "{{baseUrl}}/api/v1/bookings/reserve" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('first reservation succeeds', () => pm.response.to.have.status(201));", "pm.environment.set('limitedBookingId', pm.response.json().data.bookingId);"] } }]
+        },
+        {
+          "name": "Second customer cannot oversell",
+          "event": [{ "listen": "prerequest", "script": { "exec": ["pm.environment.set('limitedKey2', pm.variables.replaceIn('{{$guid}}'));" ] } }],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{secondCustomerId}}" }, { "key": "Idempotency-Key", "value": "{{limitedKey2}}" }], "body": { "mode": "raw", "raw": "{ \"concertId\": {{limitedConcertId}}, \"items\": [{ \"ticketCategoryId\": {{limitedCategoryId}}, \"quantity\": 1 }] }" }, "url": "{{baseUrl}}/api/v1/bookings/reserve" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('sold out', () => pm.response.to.have.status(409));", "pm.expect(pm.response.json().error.code).to.eql('TICKET_SOLD_OUT');"] } }]
+        },
+        {
+          "name": "Inventory reports one reserved ticket",
+          "request": { "method": "GET", "header": [{ "key": "X-User-Id", "value": "{{operatorId}}" }, { "key": "X-Role", "value": "{{operatorRole}}" }], "url": "{{baseUrl}}/api/v1/admin/concerts/{{limitedConcertId}}/inventory" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('inventory remains non-negative', () => pm.response.to.have.status(200));", "const category = pm.response.json().data.categories[0];", "pm.expect(category.availableQuantity).to.eql(0);", "pm.expect(category.reservedCount).to.eql(1);"] } }]
+        }
+      ]
+    },
+    {
+      "name": "05 - Payment, admin and recovery",
+      "item": [
+        {
+          "name": "Pay limited reservation (SUCCESS mode)",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{customerId}}" }], "body": { "mode": "raw", "raw": "{ \"paymentMethod\": \"MOCK\" }" }, "url": "{{baseUrl}}/api/v1/bookings/{{limitedBookingId}}/pay" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('payment confirmed', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().data.state).to.eql('CONFIRMED');"] } }]
+        },
+        {
+          "name": "Mark voucher booking suspicious",
+          "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{operatorId}}" }, { "key": "X-Role", "value": "{{operatorRole}}" }], "body": { "mode": "raw", "raw": "{ \"suspicious\": true, \"suspicionReason\": \"Postman review test\" }" }, "url": "{{baseUrl}}/api/v1/admin/bookings/{{voucherBookingId}}/suspicion" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('booking is flagged', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().data.suspicious).to.eql(true);"] } }]
+        },
+        {
+          "name": "Filter suspicious bookings",
+          "request": { "method": "GET", "header": [{ "key": "X-User-Id", "value": "{{operatorId}}" }, { "key": "X-Role", "value": "{{operatorRole}}" }], "url": "{{baseUrl}}/api/v1/admin/bookings?suspicious=true" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('lists suspicious bookings', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "Cancel voucher booking and release inventory/voucher",
+          "request": { "method": "PATCH", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{operatorId}}" }, { "key": "X-Role", "value": "{{operatorRole}}" }], "body": { "mode": "raw", "raw": "{ \"targetState\": \"CANCELLED\" }" }, "url": "{{baseUrl}}/api/v1/admin/bookings/{{voucherBookingId}}/state" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('cancels once', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().data.state).to.eql('CANCELLED');"] } }]
+        },
+        {
+          "name": "Payment FAILED scenario (manual setup required)",
+          "request": { "method": "POST", "description": "Restart the API with PAYMENT_BEHAVIOR=FAILED, set bookingId to a fresh PENDING booking, then send. Expect 402 and a CANCELLED booking with released inventory/voucher.", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{customerId}}" }], "body": { "mode": "raw", "raw": "{ \"paymentMethod\": \"MOCK\" }" }, "url": "{{baseUrl}}/api/v1/bookings/{{bookingId}}/pay" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('payment failure is compensated', () => pm.response.to.have.status(402));"] } }]
+        },
+        {
+          "name": "Payment TIMEOUT scenario (manual setup required)",
+          "request": { "method": "POST", "description": "Restart the API with PAYMENT_BEHAVIOR=TIMEOUT, set bookingId to a fresh PENDING booking, then send. Expect 504; a subsequent GET booking must show PENDING.", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{customerId}}" }], "body": { "mode": "raw", "raw": "{ \"paymentMethod\": \"MOCK\" }" }, "url": "{{baseUrl}}/api/v1/bookings/{{bookingId}}/pay" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('payment timeout is retryable', () => pm.response.to.have.status(504));"] } }]
+        },
+        {
+          "name": "Expiry scenario (manual DB setup required)",
+          "request": { "method": "GET", "description": "Create a fresh PENDING or AWAITING_PAYMENT booking, set its payment_deadline to the past in PostgreSQL, wait 30 seconds, then send. Expect EXPIRED. SQL: UPDATE bookings SET payment_deadline = NOW() - INTERVAL '1 minute' WHERE id = {{bookingId}};", "header": [{ "key": "X-User-Id", "value": "{{customerId}}" }], "url": "{{baseUrl}}/api/v1/bookings/{{bookingId}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('overdue booking is expired', () => pm.response.to.have.status(200));", "pm.expect(pm.response.json().data.state).to.eql('EXPIRED');"] } }]
+        },
+        {
+          "name": "Redis reconciliation scenario (manual infrastructure setup)",
+          "request": { "method": "GET", "description": "Stop Redis, reserve or cancel a booking, then start Redis and wait 30 seconds. This GET confirms the cache-reconciled availability. Database remains authoritative throughout.", "header": [], "url": "{{baseUrl}}/api/v1/concerts/{{concertId}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('concert remains readable after reconciliation', () => pm.response.to.have.status(200));"] } }]
         }
       ]
     }
