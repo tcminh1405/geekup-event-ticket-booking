@@ -77,7 +77,7 @@ flowchart TD
     B -->|"Voucher Distributed Lock"| F["Fail-Closed: Throw ServiceBusyException 503"]
 ```
 
-- **Fail-Open (Idempotency & Rate Limit)**: Đảm bảo khách hàng không bị chặn mua vé hợp lệ chỉ vì Redis caching layer gặp sự cố tạm thời. PostgreSQL vẫn có unique constraint `idempotency_key` làm lá chắn cuối cùng.
+- **Fail-Open (Idempotency & Rate Limit)**: Đảm bảo khách hàng không bị chặn mua vé hợp lệ chỉ vì Redis caching layer gặp sự cố tạm thời. PostgreSQL vẫn có unique constraint `(user_id, idempotency_key)` làm lá chắn cuối cùng và retry sẽ đọc booking đã lưu.
 - **PostgreSQL làm Single Source of Truth**: Mọi giao dịch tiền bạc và số lượng vé đều được ghi chép và xác thực trước tiên tại PostgreSQL.
 
 ---

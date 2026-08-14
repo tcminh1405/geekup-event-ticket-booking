@@ -17,6 +17,8 @@ The suite uses JUnit 5 and jqwik. `InventoryPropertyTest` starts a PostgreSQL Te
 | `IdempotencyPropertyTest` | Redis idempotency storage uses the expected key namespace and 24-hour TTL. |
 | `VoucherDiscountPropertyTest` | Fixed/percentage discount calculations stay within valid monetary bounds. |
 | `InventoryPropertyTest` | The PostgreSQL conditional inventory decrement never makes availability negative, including reserve/restore cycles. |
+| `BookingExpiryServiceTest` | An overdue `AWAITING_PAYMENT` booking is atomically expired and its reservation is released. |
+| `BookingIdempotencyFallbackTest` | A durable `(user_id, idempotency_key)` match is returned before any new inventory operation. |
 
 ## Manual API verification
 

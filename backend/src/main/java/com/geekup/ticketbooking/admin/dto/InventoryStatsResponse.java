@@ -34,8 +34,11 @@ public class InventoryStatsResponse {
         @Schema(description = "Total quantity originally allocated", example = "200")
         private int totalQuantity;
 
-        @Schema(description = "Number of tickets sold (CONFIRMED + AWAITING_PAYMENT)", example = "150")
+        @Schema(description = "Number of tickets in confirmed bookings", example = "120")
         private int soldCount;
+
+        @Schema(description = "Number of tickets temporarily reserved but not yet confirmed", example = "30")
+        private int reservedCount;
 
         @Schema(description = "Remaining available quantity", example = "50")
         private int availableQuantity;

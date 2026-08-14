@@ -45,7 +45,7 @@ erDiagram
         varchar state
         numeric total_amount
         numeric discount_amount
-        varchar idempotency_key UK
+        varchar idempotency_key "UK with user_id"
         timestamp payment_deadline
         timestamp payment_timestamp
         timestamp created_at
@@ -145,19 +145,19 @@ Lưu trữ đơn đặt vé của khách hàng và trạng thái vòng đời đ
 | `state` | VARCHAR(30) | NO | `'PENDING'` | Trạng thái đơn vé (`PENDING`, `AWAITING_PAYMENT`, `CONFIRMED`, `CANCELLED`, `EXPIRED`) |
 | `total_amount` | NUMERIC(15,2) | NO | - | Tổng tiền đơn hàng sau giảm giá |
 | `discount_amount` | NUMERIC(15,2) | NO | `0.00` | Số tiền được giảm từ voucher |
-| `idempotency_key` | VARCHAR(128) | NO | UNIQUE | Key chống duplicate booking do client gửi |
+| `idempotency_key` | VARCHAR(128) | NO | UNIQUE with `user_id` | Key chống duplicate booking do client gửi |
 | `payment_deadline` | TIMESTAMP | NO | - | Hạn chót thanh toán (mặc định createdAt + 15 mins) |
 | `payment_timestamp` | TIMESTAMP | YES | NULL | Thời điểm thanh toán thành công |
 | `created_at` | TIMESTAMP | NO | `CURRENT_TIMESTAMP` | Thời gian tạo đơn |
 | `updated_at` | TIMESTAMP | NO | `CURRENT_TIMESTAMP` | Thời gian cập nhật |
 
 **Constraints:**
-- `uq_bookings_idempotency_key`: `UNIQUE (idempotency_key)`
+- `uq_bookings_user_idempotency_key`: `UNIQUE (user_id, idempotency_key)`
 - `chk_booking_state`: `CHECK (state IN ('PENDING', 'AWAITING_PAYMENT', 'CONFIRMED', 'CANCELLED', 'EXPIRED'))`
 
 **Indexes:**
 - `idx_bookings_user_created`: `(user_id, created_at DESC)` (Cho API xem lịch sử đặt vé của user)
-- `idx_bookings_expiry_scan`: `(state, payment_deadline)` (Tối ưu cho Scheduler quét đơn PENDING hết hạn)
+- `idx_bookings_expiry_state_deadline`: `(state, payment_deadline)` (Tối ưu cho Scheduler quét đơn `PENDING`/`AWAITING_PAYMENT` hết hạn)
 - `idx_bookings_admin_filter`: `(state, concert_id, created_at)` (Tối ưu cho Admin Dashboard filter)
 
 ---

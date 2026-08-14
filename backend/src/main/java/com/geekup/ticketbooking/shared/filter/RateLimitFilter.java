@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.time.Duration;
 
 /**
- * Sliding-window rate limit filter: max 200 requests per 60 seconds per user.
+ * Fixed-window rate limit filter: max 200 requests per 60 seconds per user.
  *
  * <p>Key pattern: {@code rate:{userId}}, TTL 60 seconds.</p>
  * <p>Uses {@link UserContext} (populated by {@code UserIdHeaderFilter}) for the user ID.

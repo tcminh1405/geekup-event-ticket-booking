@@ -17,13 +17,23 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
 
     Page<Booking> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
 
+    java.util.Optional<Booking> findByUserIdAndIdempotencyKey(Long userId, String idempotencyKey);
+
     List<Booking> findAllByStateAndPaymentDeadlineBefore(BookingState state, LocalDateTime deadline);
 
-    @Modifying
+    List<Booking> findAllByStateInAndPaymentDeadlineBefore(List<BookingState> states, LocalDateTime deadline);
+
+    @Modifying(flushAutomatically = true)
     @Query("UPDATE Booking b SET b.state = :target WHERE b.id = :id AND b.state = :expected")
     int transitionStateIfCurrent(@Param("id") Long id,
                                  @Param("expected") BookingState expected,
                                  @Param("target") BookingState target);
+
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE Booking b SET b.state = :target WHERE b.id = :id AND b.state IN :expectedStates")
+    int transitionStateIfCurrentIn(@Param("id") Long id,
+                                   @Param("expectedStates") List<BookingState> expectedStates,
+                                   @Param("target") BookingState target);
 
     // Count inventory that is no longer available: pending reservations as well
     // as bookings being paid or confirmed.

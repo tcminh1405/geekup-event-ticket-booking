@@ -45,8 +45,8 @@ public class BookingExpiryScheduler {
     @Scheduled(fixedDelay = 30_000)
     public void expireOverdueBookings() {
         LocalDateTime now = LocalDateTime.now();
-        List<Booking> overdueBookings =
-                bookingRepository.findAllByStateAndPaymentDeadlineBefore(BookingState.PENDING, now);
+        List<Booking> overdueBookings = bookingRepository.findAllByStateInAndPaymentDeadlineBefore(
+                List.of(BookingState.PENDING, BookingState.AWAITING_PAYMENT), now);
 
         if (overdueBookings.isEmpty()) {
             log.debug("[BookingExpiryScheduler] No overdue PENDING bookings found.");

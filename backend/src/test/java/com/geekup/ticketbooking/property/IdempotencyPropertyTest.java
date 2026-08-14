@@ -24,7 +24,7 @@ import static org.mockito.Mockito.*;
  *
  * **Validates: Requirements 2.5, 9.3**
  */
-@net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 2: idempotency-no-duplicate-bookings")
+@net.jqwik.api.Tag("idempotency")
 class IdempotencyPropertyTest {
 
     // ─── Arbitraries ─────────────────────────────────────────────────────────────
@@ -88,7 +88,7 @@ class IdempotencyPropertyTest {
      * the same JSON string — proving the same response is returned on retry.
      */
     @Property(tries = 100)
-    @net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 2: idempotency-no-duplicate-bookings")
+    @net.jqwik.api.Tag("idempotency")
     void sameKeyProducesNoDuplicateBooking(
             @ForAll("validIdempotencyKey") String key,
             @ForAll("jsonResponse") String json) {
@@ -121,7 +121,7 @@ class IdempotencyPropertyTest {
      * must return Optional.empty() — no phantom cache hits.
      */
     @Property(tries = 100)
-    @net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 2: idempotency-no-duplicate-bookings")
+    @net.jqwik.api.Tag("idempotency")
     void absentKeyReturnsEmpty(@ForAll("validIdempotencyKey") String key) {
 
         StringRedisTemplate template = mock(StringRedisTemplate.class);
@@ -151,7 +151,7 @@ class IdempotencyPropertyTest {
      * entries from other Redis data.
      */
     @Property(tries = 100)
-    @net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 2: idempotency-no-duplicate-bookings")
+    @net.jqwik.api.Tag("idempotency")
     void validKeysAreStoredWithCorrectPrefixAndTtl(
             @ForAll("validIdempotencyKey") String key,
             @ForAll("jsonResponse") String json) {
@@ -198,7 +198,7 @@ class IdempotencyPropertyTest {
      * that whatever is cached is returned faithfully, with no silent data loss.
      */
     @Property(tries = 100)
-    @net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 2: idempotency-no-duplicate-bookings")
+    @net.jqwik.api.Tag("idempotency")
     void storingSameKeyTwiceReturnsLastStoredResponse(
             @ForAll("validIdempotencyKey") String key,
             @ForAll("jsonResponse") String json) {

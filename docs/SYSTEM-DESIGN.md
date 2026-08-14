@@ -66,7 +66,7 @@ flowchart TD
 
     subgraph CrossCutting ["shared / Cross-Cutting Layer"]
         UH["UserIdHeaderFilter"]
-        RL["RateLimitFilter (Redis Sliding Window)"]
+        RL["RateLimitFilter (Redis Fixed Window)"]
         IF["IdempotencyFilter (Redis 24h TTL)"]
         AR["AdminRoleFilter"]
         GEH["GlobalExceptionHandler"]
@@ -240,9 +240,9 @@ sequenceDiagram
 |---|---|---|
 | **Overselling** (Bán quá số vé) | **Atomic Row CAS Update** tại DB level | Sử dụng truy vấn SQL: `UPDATE ticket_categories SET available_quantity = available_quantity - :qty WHERE id = :id AND available_quantity >= :qty`. Database row lock tự động serialize các request đồng thời mà không cần distributed lock trên từng ticket category. |
 | **Read Latency** (Đọc kho nhanh) | **Redis Inventory Read Cache** | Khi xem thông tin Concert, số lượng vé còn lại được đọc từ Redis key `inventory:{ticketCategoryId}` để giảm tải truy vấn `COUNT`/`SELECT` vào DB. Kho Redis được cập nhật sau khi DB commit transaction thành công. |
-| **Duplicate Booking** (Đặt trùng) | **Idempotency Filter + Redis Cache** | Bắt buộc truyền header `Idempotency-Key` (max 128 chars). Filter kiểm tra key trong Redis. Nếu key đã có kết quả HTTP 2xx, lập tức trả về cached response mà không gọi xuống DB. Key có TTL 24 giờ. |
-| **Voucher Abuse** (Lạm dụng mã) | **Redisson Lock per User+Voucher** | Tạo khóa phân tán Redisson với pattern `lock:voucher:{userId}:{voucherId}`. Đảm bảo 1 user không thể gửi 100 request đồng thời để dùng cùng 1 voucher vượt quá lượt phép. |
-| **DDS Attack / Spam** (Quá tải) | **Redis Sliding Window Rate Limiter** | Giới hạn 200 requests/phút per `X-User-Id`. Khi vượt ngưỡng trả về HTTP 429 kèm header `Retry-After: 60`. |
+| **Duplicate Booking** (Đặt trùng) | **Idempotency Filter + Redis Cache + DB fallback** | Bắt buộc truyền header `Idempotency-Key` (max 128 chars). Redis trả lại response nhanh trong 24 giờ; khi cache bị mất hoặc Redis lỗi, unique key `(user_id, idempotency_key)` và lookup booking đã lưu vẫn ngăn tạo đơn mới. |
+| **Voucher Abuse** (Lạm dụng mã) | **Redisson Lock per Voucher** | Tạo khóa phân tán theo voucher code để mọi user cạnh tranh cùng một mã single-use đều được serialize; campaign quota vẫn được tăng bằng conditional update. |
+| **DDS Attack / Spam** (Quá tải) | **Redis Fixed Window Rate Limiter** | Giới hạn 200 requests/phút per `X-User-Id`. Khi vượt ngưỡng trả về HTTP 429 kèm header `Retry-After: 60`. |
 
 ---
 
@@ -255,6 +255,7 @@ stateDiagram-v2
     [*] --> PENDING : Reserve Ticket (15m Hold)
     PENDING --> AWAITING_PAYMENT : Submit Payment
     PENDING --> EXPIRED : Timeout 15m
+    AWAITING_PAYMENT --> EXPIRED : Interrupted payment timeout
     PENDING --> CANCELLED : Operator Cancel
     AWAITING_PAYMENT --> CONFIRMED : Payment SUCCESS
     AWAITING_PAYMENT --> CANCELLED : Payment FAILED

@@ -205,6 +205,14 @@ public class VoucherService {
                 voucher.getCode(), campaign.getName(), "decremented atomically");
     }
 
+    /** Records the booking that consumed a voucher after the booking has an ID. */
+    public void linkVoucherToBooking(Long voucherId, com.geekup.ticketbooking.booking.entity.Booking booking) {
+        Voucher voucher = voucherRepository.findById(voucherId)
+                .orElseThrow(() -> new ResourceNotFoundException("VOUCHER_NOT_FOUND", "Voucher no longer exists."));
+        voucher.setUsedInBooking(booking);
+        voucherRepository.save(voucher);
+    }
+
     // -------------------------------------------------------------------------
     // Internal helpers
     // -------------------------------------------------------------------------

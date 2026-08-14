@@ -88,6 +88,17 @@ public class BookingService {
      */
     @Transactional
     public BookingResponse reserve(Long userId, ReserveBookingRequest request, String idempotencyKey) {
+        // Redis makes the common retry fast, while this lookup is the durable
+        // fallback after eviction or a Redis outage. It also prevents a retry
+        // from reaching the inventory writes again.
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            Booking existing = bookingRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)
+                    .orElse(null);
+            if (existing != null) {
+                return toBookingResponse(existing);
+            }
+        }
+
         // Step 1 — Validate concert exists and is published
         Concert concert = concertRepository.findById(request.getConcertId())
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -184,6 +195,9 @@ public class BookingService {
             savedBooking.setDiscountAmount(result.getDiscountAmount());
             savedBooking.setVoucher(voucher);
             savedBooking = bookingRepository.save(savedBooking);
+
+            // Keep voucher usage auditable and make a later reversal traceable.
+            voucherService.linkVoucherToBooking(result.getVoucherId(), savedBooking);
         }
 
         final Booking finalBooking = savedBooking;
@@ -250,9 +264,16 @@ public class BookingService {
             paymentGateway.process(bookingId, request.getPaymentMethod());
 
             // Step 3 — SUCCESS → CONFIRMED
+            if (bookingRepository.transitionStateIfCurrent(bookingId,
+                    BookingState.AWAITING_PAYMENT, BookingState.CONFIRMED) == 0) {
+                throw new ConflictException("INVALID_BOOKING_STATE",
+                        "Booking " + bookingId + " was expired or cancelled while payment was being processed.");
+            }
             booking.setState(BookingState.CONFIRMED);
             booking.setPaymentTimestamp(LocalDateTime.now());
             Booking confirmed = bookingRepository.save(booking);
+            confirmed.getItems().forEach(item -> ticketCategoryRepository
+                    .incrementSoldQuantity(item.getTicketCategory().getId(), item.getQuantity()));
 
             log.info("[BookingService] Payment confirmed: bookingId={}, userId={}", bookingId, userId);
             return toBookingDetailResponse(confirmed);
@@ -260,9 +281,12 @@ public class BookingService {
         } catch (PaymentFailedException e) {
             // Step 4 — FAILED → CANCELLED; restore inventory + voucher
             log.warn("[BookingService] Payment failed for bookingId={}: {}", bookingId, e.getMessage());
-            booking.setState(BookingState.CANCELLED);
-            bookingRepository.save(booking);
-            restoreInventory(booking);
+            if (bookingRepository.transitionStateIfCurrent(bookingId,
+                    BookingState.AWAITING_PAYMENT, BookingState.CANCELLED) == 1) {
+                booking.setState(BookingState.CANCELLED);
+                bookingRepository.save(booking);
+                restoreInventory(booking);
+            }
             throw e;
 
         } catch (PaymentGatewayTimeoutException e) {
@@ -327,6 +351,11 @@ public class BookingService {
 
             // Restore DB quantity
             ticketCategoryRepository.incrementAvailableQuantity(categoryId, qty);
+
+            if (booking.getState() == BookingState.CANCELLED
+                    && booking.getPaymentTimestamp() != null) {
+                ticketCategoryRepository.decrementSoldQuantity(categoryId, qty);
+            }
 
             registerPostCommitInventoryCacheIncrement(categoryId, qty);
         }

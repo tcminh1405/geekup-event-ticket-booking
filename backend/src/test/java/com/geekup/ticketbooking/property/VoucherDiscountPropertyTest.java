@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * Validates: Requirement 4.2
  */
-@net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 3: voucher-discount-calculation-correctness")
+@net.jqwik.api.Tag("voucher-discount")
 class VoucherDiscountPropertyTest {
 
     private static final BigDecimal MINIMUM = new BigDecimal("0.01");
@@ -105,7 +105,7 @@ class VoucherDiscountPropertyTest {
      * the discounted amount shall equal max(floor(A × (1 − R/100)), 0.01).
      */
     @Property(tries = 100)
-    @net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 3: voucher-discount-calculation-correctness")
+    @net.jqwik.api.Tag("voucher-discount")
     void percentageDiscountIsComputedCorrectly(
             @ForAll("positiveAmount")  BigDecimal amount,
             @ForAll("percentageRate")  BigDecimal rate) {
@@ -131,7 +131,7 @@ class VoucherDiscountPropertyTest {
      * The result of a percentage discount must never fall below 0.01.
      */
     @Property(tries = 100)
-    @net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 3: voucher-discount-calculation-correctness")
+    @net.jqwik.api.Tag("voucher-discount")
     void percentageDiscountNeverFallsBelowMinimum(
             @ForAll("positiveAmount")  BigDecimal amount,
             @ForAll("percentageRate")  BigDecimal rate) {
@@ -150,7 +150,7 @@ class VoucherDiscountPropertyTest {
      * the discounted amount must be ≤ the original booking amount.
      */
     @Property(tries = 100)
-    @net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 3: voucher-discount-calculation-correctness")
+    @net.jqwik.api.Tag("voucher-discount")
     void percentageDiscountNeverExceedsOriginalAmount(
             @ForAll("positiveAmount")  BigDecimal amount,
             @ForAll("percentageRate")  BigDecimal rate) {
@@ -173,7 +173,7 @@ class VoucherDiscountPropertyTest {
      * the discounted amount shall equal max(A − F, 0.01).
      */
     @Property(tries = 100)
-    @net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 3: voucher-discount-calculation-correctness")
+    @net.jqwik.api.Tag("voucher-discount")
     void fixedDiscountIsComputedCorrectly(
             @ForAll("positiveAmount")        BigDecimal amount,
             @ForAll("positiveFixedDiscount") BigDecimal fixed) {
@@ -193,7 +193,7 @@ class VoucherDiscountPropertyTest {
      * The result of a fixed discount must never fall below 0.01.
      */
     @Property(tries = 100)
-    @net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 3: voucher-discount-calculation-correctness")
+    @net.jqwik.api.Tag("voucher-discount")
     void fixedDiscountNeverFallsBelowMinimum(
             @ForAll("positiveAmount")        BigDecimal amount,
             @ForAll("positiveFixedDiscount") BigDecimal fixed) {
@@ -212,7 +212,7 @@ class VoucherDiscountPropertyTest {
      * (the minimum-floor branch is not reached).
      */
     @Property(tries = 100)
-    @net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 3: voucher-discount-calculation-correctness")
+    @net.jqwik.api.Tag("voucher-discount")
     void fixedDiscountEqualsAmountMinusFixedWhenPositive(
             @ForAll("positiveFixedDiscount") BigDecimal fixed) {
 

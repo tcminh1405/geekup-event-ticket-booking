@@ -17,7 +17,8 @@ public class BookingExpiryService {
 
     @Transactional
     public boolean expire(Long bookingId) {
-        if (bookingRepository.transitionStateIfCurrent(bookingId, BookingState.PENDING, BookingState.EXPIRED) == 0) {
+        if (bookingRepository.transitionStateIfCurrentIn(bookingId,
+                java.util.List.of(BookingState.PENDING, BookingState.AWAITING_PAYMENT), BookingState.EXPIRED) == 0) {
             return false;
         }
         Booking booking = bookingRepository.findById(bookingId).orElseThrow();

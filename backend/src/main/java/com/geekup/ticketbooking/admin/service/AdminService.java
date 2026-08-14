@@ -141,15 +141,16 @@ public class AdminService {
 
         List<InventoryStatsResponse.TicketCategoryInventory> stats = categories.stream()
                 .map(cat -> {
-                    // availableQuantity is the inventory source of truth. It
-                    // already excludes PENDING reservations, unlike a query of
-                    // only paid bookings.
-                    int reservedOrSoldCount = cat.getTotalQuantity() - cat.getAvailableQuantity();
+                    // availableQuantity excludes both temporary holds and paid
+                    // tickets. Keep them separate for operator decisions.
+                    int soldCount = cat.getSoldQuantity();
+                    int reservedCount = cat.getTotalQuantity() - cat.getAvailableQuantity() - soldCount;
                     return InventoryStatsResponse.TicketCategoryInventory.builder()
                             .ticketCategoryId(cat.getId())
                             .name(cat.getName())
                             .totalQuantity(cat.getTotalQuantity())
-                            .soldCount(reservedOrSoldCount)
+                            .soldCount(soldCount)
+                            .reservedCount(reservedCount)
                             .availableQuantity(cat.getAvailableQuantity())
                             .build();
                 })
@@ -237,6 +238,10 @@ public class AdminService {
         }
 
         BookingState previousState = booking.getState();
+        if (bookingRepository.transitionStateIfCurrent(bookingId, previousState, targetState) == 0) {
+            throw new ValidationException("INVALID_STATE_TRANSITION",
+                    "Booking state changed concurrently. Refresh and try again.");
+        }
         booking.setState(targetState);
 
         if (targetState == BookingState.CANCELLED) {

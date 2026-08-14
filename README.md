@@ -10,7 +10,7 @@ Backend submission for the GEEK Up Product Backend Engineer Test. The project mo
 - PostgreSQL migrations, Redis, deterministic seed data, Swagger/OpenAPI, and Docker Compose.
 - Protection for the main flash-sale risks:
   - Atomic PostgreSQL inventory decrement prevents overselling.
-  - Redis in-flight claim plus a unique database key prevents duplicate reservation processing.
+  - Redis in-flight claim plus a user-scoped database key prevents duplicate reservation processing; the database is also used as the durable retry fallback.
   - Voucher-level distributed lock and atomic campaign quota update prevent concurrent reuse/over-consumption.
   - Atomic booking state transitions protect payment retries and booking expiry.
 
@@ -166,7 +166,7 @@ PENDING → AWAITING_PAYMENT → CONFIRMED
 ```
 
 - A reservation is held in `PENDING` for 15 minutes.
-- The expiry scheduler scans every 30 seconds and atomically expires only still-pending bookings.
+- The expiry scheduler scans every 30 seconds and atomically expires still-pending or interrupted in-payment bookings.
 - `CANCELLED` and `EXPIRED` release reserved inventory and voucher usage once.
 
 Operators may also flag a booking with a short review reason through `PATCH /api/v1/admin/bookings/{id}/suspicion`; this is a manual-review workflow, not an automated fraud engine.

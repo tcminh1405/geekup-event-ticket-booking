@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * **Validates: Requirements 9.1, 9.6**
  */
-@net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 4: inventory-non-negative-invariant")
+@net.jqwik.api.Tag("inventory")
 class InventoryPropertyTest {
 
     // ─── Singleton Container (started once per JVM via static initializer) ──────
@@ -193,7 +193,7 @@ class InventoryPropertyTest {
      * </p>
      */
     @Property(tries = 100)
-    @net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 4: inventory-non-negative-invariant")
+    @net.jqwik.api.Tag("inventory")
     void availableQuantityNeverGoesNegative(
             @ForAll("initialQuantity")     int          initialQty,
             @ForAll("operationQuantities") List<Integer> ops) throws SQLException {
@@ -265,7 +265,7 @@ class InventoryPropertyTest {
      * expected (but still >= 0, which the WHERE guard enforces).</p>
      */
     @Property(tries = 100)
-    @net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 4: inventory-non-negative-invariant")
+    @net.jqwik.api.Tag("inventory")
     void reserveAndCancelCycleMaintainsBounds(
             @ForAll("initialQuantity")           int initialQty,
             @ForAll @IntRange(min = 1, max = 20) int cycles) throws SQLException {

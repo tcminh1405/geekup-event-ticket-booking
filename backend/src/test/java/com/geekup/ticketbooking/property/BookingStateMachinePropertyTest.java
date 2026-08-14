@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * Validates: Requirements 3.4, 6.3, 6.4
  */
-@net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 1: booking-state-machine-validity")
+@net.jqwik.api.Tag("booking-state-machine")
 class BookingStateMachinePropertyTest {
 
     // -----------------------------------------------------------------
@@ -43,7 +43,7 @@ class BookingStateMachinePropertyTest {
      * BookingState.canTransitionTo(T) must return true.
      */
     @Property(tries = 100)
-    @net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 1: booking-state-machine-validity")
+    @net.jqwik.api.Tag("booking-state-machine")
     void validTransitionsAreAccepted(@ForAll("anyState") BookingState source) {
         Set<BookingState> validTargets = source.validNextStates();
 
@@ -70,7 +70,7 @@ class BookingStateMachinePropertyTest {
      * INVALID_STATE_TRANSITION.
      */
     @Property(tries = 100)
-    @net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 1: booking-state-machine-validity")
+    @net.jqwik.api.Tag("booking-state-machine")
     void invalidTransitionsAreRejected(
             @ForAll("anyState") BookingState source,
             @ForAll("anyState") BookingState target) {
@@ -98,7 +98,7 @@ class BookingStateMachinePropertyTest {
      * transition is permitted from them.
      */
     @Property(tries = 100)
-    @net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 1: booking-state-machine-validity")
+    @net.jqwik.api.Tag("booking-state-machine")
     void terminalStatesHaveNoValidTransitions(@ForAll("anyState") BookingState target) {
         assertThat(BookingState.CANCELLED.canTransitionTo(target))
                 .as("CANCELLED should not be able to transition to %s", target)
@@ -124,7 +124,7 @@ class BookingStateMachinePropertyTest {
      * returning true.
      */
     @Property(tries = 100)
-    @net.jqwik.api.Tag("Feature: concert-ticket-booking, Property 1: booking-state-machine-validity")
+    @net.jqwik.api.Tag("booking-state-machine")
     void validNextStatesIsConsistentWithCanTransitionTo(
             @ForAll("anyState") BookingState source,
             @ForAll("anyState") BookingState target) {
