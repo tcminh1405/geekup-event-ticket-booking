@@ -102,18 +102,18 @@ public class DataSeeder implements CommandLineRunner {
                 CONCERT_1_NAME,
                 "Mỹ Đình National Stadium, Hanoi",
                 LocalDateTime.now().plusMonths(2),
-                new BigDecimal("1_500_000"),  // VIP: 1,500,000 VND
+                new BigDecimal("1500000"),  // VIP: 1,500,000 VND
                 60,
-                new BigDecimal("350_000"),    // Standard: 350,000 VND
+                new BigDecimal("350000"),    // Standard: 350,000 VND
                 150
         );
         insertPublishedConcert(
                 CONCERT_2_NAME,
                 "Hoa Binh Theatre, Ho Chi Minh City",
                 LocalDateTime.now().plusMonths(3),
-                new BigDecimal("800_000"),    // VIP: 800,000 VND
+                new BigDecimal("800000"),    // VIP: 800,000 VND
                 50,
-                new BigDecimal("299_000"),    // Standard: 299,000 VND
+                new BigDecimal("299000"),    // Standard: 299,000 VND
                 100
         );
         log.info("[DataSeeder] Demo concerts inserted.");
@@ -142,7 +142,7 @@ public class DataSeeder implements CommandLineRunner {
         TicketCategory flashCategory = TicketCategory.builder()
                 .concert(concert)
                 .name("Flash Sale Ticket")
-                .price(new BigDecimal("500_000"))
+                .price(new BigDecimal("500000"))
                 .totalQuantity(100)
                 .availableQuantity(100)
                 .soldQuantity(0)
@@ -173,7 +173,7 @@ public class DataSeeder implements CommandLineRunner {
                 .name(CAMPAIGN_NAME)
                 .discountType("PERCENTAGE")
                 .discountValue(new BigDecimal("10"))   // 10% off
-                .minBookingAmount(new BigDecimal("200_000"))
+                .minBookingAmount(new BigDecimal("200000"))
                 .maxUsageCount(50)
                 .currentUsageCount(0)
                 .startDate(today.minusDays(1))          // started yesterday → active now

@@ -15,37 +15,43 @@ Nền tảng Đặt vé Sự kiện Âm nhạc (Concert Ticket Booking Platform)
 
 ```
 com.geekup.ticketbooking/
-├── common/                  # Shared Infrastructure & Cross-Cutting Concerns
-│   ├── config/              # Redis, Redisson, Async, Web MVC Configs
-│   ├── dto/                 # ApiResponse<T>, ErrorResponse, PageResult<T>
-│   ├── exception/           # ApplicationException & GlobalExceptionHandler
-│   ├── filter/              # IdempotencyFilter, RateLimitFilter, UserIdHeaderFilter
-│   └── lock/                # DistributedLockAspect / Redisson Utilities
-└── module/
-    ├── concert/             # Concert Catalog Domain Module (Quản lý sự kiện & Hạng vé)
-    │   ├── controller/      # ConcertController
-    │   ├── entity/          # Concert, TicketCategory
-    │   ├── repository/      # ConcertRepository, TicketCategoryRepository
-    │   └── service/         # ConcertService, InventoryCacheService
-    ├── booking/             # Booking & Reservation Domain Module (Giữ vé & State Machine)
-    │   ├── controller/      # BookingController
-    │   ├── entity/          # Booking, BookingItem, BookingState (Enum)
-    │   ├── repository/      # BookingRepository, BookingItemRepository
-    │   ├── scheduler/       # BookingExpiryScheduler (Background Job quét vé hết hạn)
-    │   └── service/         # BookingService, IdempotencyService
-    ├── voucher/             # Voucher & Campaign Domain Module (Mã giảm giá & Khóa phân tán)
-    │   ├── controller/      # VoucherController
-    │   ├── entity/          # VoucherCampaign, Voucher
-    │   ├── repository/      # VoucherCampaignRepository, VoucherRepository
-    │   └── service/         # VoucherService, VoucherLockService
-    ├── payment/             # Payment Domain Module (Thanh toán & Mock Payment Gateway)
-    │   ├── controller/      # PaymentController
-    │   ├── gateway/         # MockPaymentGateway (Giả lập cổng thanh toán)
-    │   └── service/         # PaymentService
-    └── admin/               # Operator Admin Domain Module (Quản trị & Báo cáo)
-        ├── controller/      # AdminController
-        └── service/         # AdminService
+├── TicketBookingApplication.java
+├── concert/                 # Concert catalog domain
+│   ├── controller/          # ConcertController
+│   ├── dto/                 # ConcertDetailResponse, ConcertSummaryResponse, ...
+│   ├── entity/              # Concert, TicketCategory
+│   ├── repository/          # ConcertRepository, TicketCategoryRepository
+│   └── service/             # ConcertService
+├── booking/                 # Reservation, payment endpoint and booking lifecycle
+│   ├── controller/          # BookingController, PaymentController
+│   ├── dto/                 # ReserveBookingRequest, PaymentRequest, responses
+│   ├── entity/              # Booking, BookingItem
+│   ├── repository/          # BookingRepository, BookingItemRepository
+│   ├── scheduler/           # BookingExpiryScheduler
+│   ├── service/             # BookingService, BookingExpiryService
+│   └── state/               # BookingState
+├── voucher/                 # Voucher validation and campaign usage
+│   ├── dto/                 # VoucherValidationResult
+│   ├── entity/              # Voucher, VoucherCampaign
+│   ├── repository/          # VoucherRepository, VoucherCampaignRepository
+│   └── service/             # VoucherService
+├── admin/                   # Internal operator use cases
+│   ├── controller/          # AdminBooking/Concert/VoucherController
+│   ├── dto/                 # Admin request/response DTOs
+│   └── service/             # AdminService
+└── shared/                  # Shared technical concerns; not a business module
+    ├── cache/               # InventoryCache, VoucherLockService, reconciliation task
+    ├── common/              # ApiResponse, UserContext
+    ├── config/              # RedisConfig, FilterConfig
+    ├── exception/           # ApplicationException, GlobalExceptionHandler
+    ├── filter/              # UserId, rate-limit, idempotency and admin-role filters
+    ├── idempotency/         # IdempotencyService
+    └── infrastructure/
+        ├── payment/         # MockPaymentGateway
+        └── seeder/          # DataSeeder
 ```
+
+`payment` is not a standalone package/module in the current implementation: its HTTP endpoint is `booking.controller.PaymentController`, while the mock gateway is shared infrastructure at `shared.infrastructure.payment`. Likewise, voucher administration is exposed from `admin`, not a customer-facing `VoucherController`.
 
 ---
 
@@ -58,10 +64,11 @@ flowchart TD
         O["Operator Dashboard"]
     end
 
-    subgraph CrossCutting ["Common / Cross-Cutting Layer"]
+    subgraph CrossCutting ["shared / Cross-Cutting Layer"]
         UH["UserIdHeaderFilter"]
         RL["RateLimitFilter (Redis Sliding Window)"]
         IF["IdempotencyFilter (Redis 24h TTL)"]
+        AR["AdminRoleFilter"]
         GEH["GlobalExceptionHandler"]
     end
 
@@ -81,20 +88,18 @@ flowchart TD
         end
 
         subgraph VoucherModule ["Voucher Module"]
-            VC["VoucherController"]
             VS["VoucherService"]
             VL["VoucherLockService (Redisson)"]
             VR["VoucherRepository"]
         end
 
-        subgraph PaymentModule ["Payment Module"]
+        subgraph PaymentInfrastructure ["Payment adapter (shared infrastructure)"]
             PC["PaymentController"]
-            PS["PaymentService"]
             PG["MockPaymentGateway"]
         end
 
         subgraph AdminModule ["Admin Module"]
-            AC["AdminController"]
+            AC["AdminBooking/Concert/VoucherController"]
             AS["AdminService"]
         end
     end
@@ -110,24 +115,24 @@ flowchart TD
     CrossCutting --> ConcertModule
     CrossCutting --> BookingModule
     CrossCutting --> VoucherModule
-    CrossCutting --> PaymentModule
+    CrossCutting --> PaymentInfrastructure
     CrossCutting --> AdminModule
 
     BookingModule -->|"Atomic CAS / Inventory Update"| ConcertModule
     BookingModule -->|"Validate & Apply Voucher"| VoucherModule
-    PaymentModule -->|"Update Booking State"| BookingModule
+    PaymentInfrastructure -->|"Update Booking State"| BookingModule
     AdminModule --> ConcertModule & BookingModule & VoucherModule
 
     CR & TCR & BR & VR --> DB
     VL & IF & RL --> RD
-    PS --> PG
+    PC --> PG
 ```
 
 ---
 
 ## 2. API Response & Error Handling Standards
 
-Tất cả các API endpoints thuộc các mô-đun đều trả về cấu trúc response thống nhất thông qua lớp bao đệm `ApiResponse<T>` trong gói `common.dto`.
+Tất cả các API endpoints thuộc các mô-đun đều trả về cấu trúc response thống nhất thông qua lớp bao đệm `ApiResponse<T>` trong gói `shared.common`.
 
 ### 2.1 Standard Success Envelope
 ```json
@@ -276,23 +281,15 @@ stateDiagram-v2
 
 ## 5. Exception & HTTP Error Code Mapping
 
-Tất cả ngoại lệ trong hệ thống kế thừa từ `ApplicationException` và được xử lý tập trung qua `@ControllerAdvice` (`GlobalExceptionHandler`) thuộc gói `common`.
+Các business exception trong hệ thống kế thừa từ `ApplicationException` và được xử lý tập trung qua `@RestControllerAdvice` (`GlobalExceptionHandler`) thuộc gói `shared.exception`. Các error code bên dưới là giá trị runtime được truyền vào nhóm exception chung, không phải các lớp exception riêng lẻ.
 
 | Exception Class | HTTP Status | Error Code | Mô tả |
 |---|---|---|---|
-| `TicketSoldOutException` | 409 Conflict | `TICKET_SOLD_OUT` | Loại vé đã hết kho khả dụng |
-| `IdempotencyKeyMissingException` | 400 Bad Request | `MISSING_IDEMPOTENCY_KEY` | Thiếu header `Idempotency-Key` ở API reserve |
-| `InvalidQuantityException` | 422 Unprocessable Entity | `INVALID_QUANTITY` | Số lượng vé mua < 1 hoặc > 10 |
-| `VoucherNotFoundException` | 404 Not Found | `VOUCHER_NOT_FOUND` | Mã voucher không tồn tại |
-| `VoucherAlreadyUsedException` | 409 Conflict | `VOUCHER_ALREADY_USED` | User đã sử dụng voucher này trước đó |
-| `VoucherExhaustedException` | 409 Conflict | `VOUCHER_EXHAUSTED` | Voucher đã hết tổng lượt sử dụng toàn hệ thống |
-| `VoucherCampaignInactiveException` | 422 Unprocessable Entity | `VOUCHER_CAMPAIGN_INACTIVE` | Chiến dịch voucher chưa bắt đầu hoặc đã hết hạn |
-| `VoucherMinimumNotMetException` | 422 Unprocessable Entity | `VOUCHER_MINIMUM_NOT_MET` | Đơn hàng chưa đạt giá trị tối thiểu để dùng voucher |
-| `InvalidBookingStateException` | 409 Conflict | `INVALID_BOOKING_STATE` | Đơn hàng không ở trạng thái PENDING khi thanh toán |
-| `InvalidStateTransitionException` | 422 Unprocessable Entity | `INVALID_STATE_TRANSITION` | Chuyển trạng thái đơn hàng không hợp lệ |
-| `BookingNotFoundException` | 404 Not Found | `BOOKING_NOT_FOUND` | Không tìm thấy đơn hàng với ID tương ứng |
-| `ConcertNotFoundException` | 404 Not Found | `CONCERT_NOT_FOUND` | Không tìm thấy sự kiện âm nhạc |
-| `ServiceBusyException` | 503 Service Unavailable | `SERVICE_BUSY` | Không lấy được Distributed Lock (kèm `Retry-After: 2`) |
+| `ConflictException` | 409 Conflict | `TICKET_SOLD_OUT`, `VOUCHER_ALREADY_USED`, `VOUCHER_EXHAUSTED`, `INVALID_BOOKING_STATE` | Xung đột tồn kho, voucher, hoặc trạng thái booking |
+| Filter response | 400 Bad Request | `MISSING_IDEMPOTENCY_KEY` | Thiếu header `Idempotency-Key` ở API reserve |
+| `ValidationException` | 422 Unprocessable Entity | `CONCERT_NOT_PUBLISHED`, `VOUCHER_CAMPAIGN_INACTIVE`, `VOUCHER_MINIMUM_NOT_MET`, `INVALID_STATE_TRANSITION` | Vi phạm rule nghiệp vụ |
+| `ResourceNotFoundException` | 404 Not Found | `BOOKING_NOT_FOUND`, `CONCERT_NOT_FOUND`, `TICKET_CATEGORY_NOT_FOUND`, `VOUCHER_NOT_FOUND` | Không tìm thấy resource |
+| `ServiceBusyException` | 503 Service Unavailable | `SERVICE_BUSY` | Không lấy được distributed lock (kèm `Retry-After: 2`) |
 | `PaymentGatewayTimeoutException` | 504 Gateway Timeout | `PAYMENT_GATEWAY_TIMEOUT` | Payment gateway không phản hồi trong 10 giây |
 | `PaymentFailedException` | 402 Payment Required | `PAYMENT_FAILED` | Giao dịch thanh toán không thành công |
 | `ForbiddenException` | 403 Forbidden | `FORBIDDEN` | Không có quyền truy cập đơn hàng của user khác |

@@ -29,6 +29,8 @@ The database is authoritative for availability. Ticket reservation uses a condit
 
 Further rationale and data modelling are in [docs/SYSTEM-DESIGN.md](docs/SYSTEM-DESIGN.md), [docs/DATABASE-DESIGN.md](docs/DATABASE-DESIGN.md), [docs/TRADE-OFFS.md](docs/TRADE-OFFS.md), and [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md).
 
+Developer conventions and the new-API workflow are in [docs/CODING-GUIDELINES.md](docs/CODING-GUIDELINES.md). Local setup and test instructions are in [docs/LOCAL-SETUP.md](docs/LOCAL-SETUP.md).
+
 ## Prerequisites
 
 - Docker Desktop (for PostgreSQL and Redis, or the full application stack)
@@ -151,7 +153,7 @@ The current tests include property-based checks for:
 - Voucher discount calculation.
 - PostgreSQL conditional inventory decrement/restore invariant via Testcontainers.
 
-The inventory property test starts a PostgreSQL Testcontainer and can take longer on its first run while Docker pulls/starts the image. See [TESTING.md](TESTING.md) for the test strategy and intended additional integration/concurrency coverage.
+The inventory property test starts a PostgreSQL Testcontainer and can take longer on its first run while Docker pulls/starts the image. Import [postman/concert-ticket-booking.postman_collection.json](postman/concert-ticket-booking.postman_collection.json) and [postman/local.postman_environment.json](postman/local.postman_environment.json) for the local API collection. See [TESTING.md](TESTING.md) for the test strategy and intended additional integration/concurrency coverage.
 
 ## Booking state model
 

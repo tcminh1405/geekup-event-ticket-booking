@@ -1,0 +1,66 @@
+{
+  "info": {
+    "_postman_id": "af60ea18-7da0-4cd6-9654-9eb9abc38223",
+    "name": "Concert Ticket Booking - Local API",
+    "description": "Run requests in order. Seeded concert IDs are discovered dynamically by the first two customer requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [],
+  "item": [
+    {
+      "name": "Customer flow",
+      "item": [
+        {
+          "name": "1. List published concerts",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/concerts" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "if (body.data && body.data.content && body.data.content.length) pm.environment.set('concertId', body.data.content[0].id);"] } }]
+        },
+        {
+          "name": "2. Get concert detail (save category ID)",
+          "request": { "method": "GET", "header": [], "url": "{{baseUrl}}/api/v1/concerts/{{concertId}}" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));", "const body = pm.response.json();", "if (body.data && body.data.ticketCategories && body.data.ticketCategories.length) pm.environment.set('ticketCategoryId', body.data.ticketCategories[0].id);"] } }]
+        },
+        {
+          "name": "3. Reserve tickets",
+          "event": [{ "listen": "prerequest", "script": { "exec": ["pm.environment.set('idempotencyKey', pm.variables.replaceIn('{{$guid}}'));" ] } }, { "listen": "test", "script": { "exec": ["pm.test('201 Created', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "if (body.data) pm.environment.set('bookingId', body.data.bookingId);"] } }],
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{customerId}}" }, { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }], "body": { "mode": "raw", "raw": "{\n  \"concertId\": {{concertId}},\n  \"items\": [{ \"ticketCategoryId\": {{ticketCategoryId}}, \"quantity\": 1 }]\n}" }, "url": "{{baseUrl}}/api/v1/bookings/reserve" }
+        },
+        {
+          "name": "4. Pay reservation",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{customerId}}" }], "body": { "mode": "raw", "raw": "{ \"paymentMethod\": \"MOCK\" }" }, "url": "{{baseUrl}}/api/v1/bookings/{{bookingId}}/pay" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('200 OK', () => pm.response.to.have.status(200));"] } }]
+        },
+        {
+          "name": "5. Get my booking",
+          "request": { "method": "GET", "header": [{ "key": "X-User-Id", "value": "{{customerId}}" }], "url": "{{baseUrl}}/api/v1/bookings/{{bookingId}}" }
+        }
+      ]
+    },
+    {
+      "name": "Operator flow",
+      "item": [
+        {
+          "name": "6. Get inventory",
+          "request": { "method": "GET", "header": [{ "key": "X-User-Id", "value": "{{operatorId}}" }, { "key": "X-Role", "value": "{{operatorRole}}" }], "url": "{{baseUrl}}/api/v1/admin/concerts/{{concertId}}/inventory" }
+        },
+        {
+          "name": "7. List bookings",
+          "request": { "method": "GET", "header": [{ "key": "X-User-Id", "value": "{{operatorId}}" }, { "key": "X-Role", "value": "{{operatorRole}}" }], "url": "{{baseUrl}}/api/v1/admin/bookings?page=0&size=20" }
+        },
+        {
+          "name": "8. Create voucher campaign",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{operatorId}}" }, { "key": "X-Role", "value": "{{operatorRole}}" }], "body": { "mode": "raw", "raw": "{\n  \"name\": \"Postman Campaign {{$timestamp}}\",\n  \"discountType\": \"PERCENTAGE\",\n  \"discountValue\": 10,\n  \"minBookingAmount\": 100000,\n  \"maxUsageCount\": 20,\n  \"startDate\": \"2026-01-01\",\n  \"endDate\": \"2027-12-31\"\n}" }, "url": "{{baseUrl}}/api/v1/admin/voucher-campaigns" },
+          "event": [{ "listen": "test", "script": { "exec": ["pm.test('201 Created', () => pm.response.to.have.status(201));", "const body = pm.response.json();", "if (body.data) pm.environment.set('voucherCampaignId', body.data.id);"] } }]
+        },
+        {
+          "name": "9. Generate voucher codes",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "X-User-Id", "value": "{{operatorId}}" }, { "key": "X-Role", "value": "{{operatorRole}}" }], "body": { "mode": "raw", "raw": "{ \"count\": 3 }" }, "url": "{{baseUrl}}/api/v1/admin/voucher-campaigns/{{voucherCampaignId}}/vouchers" }
+        },
+        {
+          "name": "10. Get voucher campaign stats",
+          "request": { "method": "GET", "header": [{ "key": "X-User-Id", "value": "{{operatorId}}" }, { "key": "X-Role", "value": "{{operatorRole}}" }], "url": "{{baseUrl}}/api/v1/admin/voucher-campaigns/{{voucherCampaignId}}/stats" }
+        }
+      ]
+    }
+  ]
+}
