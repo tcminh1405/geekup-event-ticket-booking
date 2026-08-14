@@ -15,7 +15,6 @@ import com.geekup.ticketbooking.concert.entity.TicketCategory;
 import com.geekup.ticketbooking.concert.repository.ConcertRepository;
 import com.geekup.ticketbooking.concert.repository.TicketCategoryRepository;
 import com.geekup.ticketbooking.shared.cache.InventoryCache;
-import com.geekup.ticketbooking.shared.exception.ConflictException;
 import com.geekup.ticketbooking.shared.exception.ResourceNotFoundException;
 import com.geekup.ticketbooking.shared.exception.ValidationException;
 import com.geekup.ticketbooking.voucher.entity.Voucher;
@@ -102,7 +101,7 @@ public class AdminService {
                         "Concert with id " + concertId + " was not found."));
 
         if (concert.isPublished()) {
-            throw new ConflictException(
+            throw new ValidationException(
                     "CONCERT_ALREADY_PUBLISHED",
                     "Concert with id " + concertId + " is already published.");
         }
@@ -224,10 +223,11 @@ public class AdminService {
                         "Booking with id " + bookingId + " was not found."));
 
         if (!booking.getState().canTransitionTo(targetState)) {
-            throw new ConflictException(
+            throw new ValidationException(
                     "INVALID_STATE_TRANSITION",
-                    "Valid transitions from " + booking.getState()
-                            + ": " + booking.getState().validNextStates());
+                    "Cannot transition from " + booking.getState()
+                            + " to " + targetState
+                            + ". Valid transitions: " + booking.getState().validNextStates());
         }
 
         BookingState previousState = booking.getState();
