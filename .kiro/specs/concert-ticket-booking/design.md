@@ -597,17 +597,70 @@ void voucherDiscountIsComputedCorrectly(@ForAll BigDecimal amount, @ForAll @IntR
 }
 ```
 
+### Package Structure (Modular Monolith)
+
+The backend is organized by domain module, not by technical layer:
+
+```
+com.geekup.ticketbooking/
+├── concert/                          # Concert browsing and management
+│   ├── ConcertController.java
+│   ├── ConcertService.java
+│   ├── Concert.java                  (entity)
+│   ├── TicketCategory.java           (entity)
+│   ├── ConcertRepository.java
+│   └── TicketCategoryRepository.java
+├── booking/                          # Reservation, payment, state machine
+│   ├── BookingController.java
+│   ├── PaymentController.java
+│   ├── BookingService.java
+│   ├── BookingExpiryScheduler.java
+│   ├── Booking.java                  (entity)
+│   ├── BookingItem.java              (entity)
+│   ├── BookingState.java             (enum)
+│   ├── BookingRepository.java
+│   └── BookingItemRepository.java
+├── voucher/                          # Voucher campaigns and discount logic
+│   ├── VoucherService.java
+│   ├── VoucherCampaign.java          (entity)
+│   ├── Voucher.java                  (entity)
+│   ├── VoucherRepository.java
+│   └── VoucherCampaignRepository.java
+├── admin/                            # Operator APIs
+│   ├── AdminConcertController.java
+│   ├── AdminBookingController.java
+│   ├── AdminVoucherController.java
+│   └── AdminService.java
+└── shared/                           # Cross-cutting concerns
+    ├── common/
+    │   └── ApiResponse.java
+    ├── exception/
+    │   ├── ApplicationException.java
+    │   ├── GlobalExceptionHandler.java
+    │   └── (all specific exception classes)
+    ├── cache/
+    │   ├── InventoryCache.java
+    │   └── IdempotencyService.java
+    ├── filter/
+    │   ├── RateLimitFilter.java
+    │   ├── IdempotencyFilter.java
+    │   └── UserIdHeaderFilter.java
+    └── infra/
+        ├── MockPaymentGateway.java
+        └── DataSeeder.java
+```
+
 ### Test Structure
 
 ```
 src/test/java/
-├── unit/
-│   ├── service/
-│   │   ├── BookingServiceTest.java          -- state machine, payment flow examples
-│   │   ├── VoucherServiceTest.java          -- voucher validation examples
-│   │   └── ConcertServiceTest.java          -- concert browsing examples
-│   └── scheduler/
-│       └── BookingExpirySchedulerTest.java  -- expiry logic examples
+├── concert/
+│   └── ConcertServiceTest.java              -- concert browsing examples
+├── booking/
+│   ├── BookingServiceTest.java              -- state machine, payment flow examples
+│   └── BookingExpirySchedulerTest.java      -- expiry logic examples
+├── voucher/
+│   └── VoucherServiceTest.java              -- voucher validation examples
 ├── property/
 │   ├── BookingStateMachinePropertyTest.java -- Property 1: state machine validity
 │   ├── IdempotencyPropertyTest.java         -- Property 2: idempotency

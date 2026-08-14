@@ -2,114 +2,124 @@
 
 ## 1. Overview & Architecture
 
-Nền tảng Đặt vé Sự kiện Âm nhạc (Concert Ticket Booking Platform) là một dịch vụ backend kiến trúc **Layered Monolithic** xây dựng trên nền **Java 21** và **Spring Boot 3**, sử dụng **PostgreSQL** làm cơ sở dữ liệu quan hệ chính (authoritative source of truth) và **Redis** (thông qua Redisson & Spring Data Redis) cho việc caching và quản lý khóa phân tán (Distributed Locking).
+Nền tảng Đặt vé Sự kiện Âm nhạc (Concert Ticket Booking Platform) là một dịch vụ backend được thiết kế theo kiến trúc **Modular Monolith (Monolith phân mô-đun theo Domain Context / Package-by-Feature)** trên nền **Java 21** và **Spring Boot 3**. Hệ thống kết hợp sức mạnh của **PostgreSQL 15** (Source of Truth duy nhất cho dữ liệu quan hệ) và **Redis 7** (cho caching, idempotency deduplication và distributed locking qua Redisson).
 
-Hệ thống được thiết kế để xử lý lượng truy cập cao trong các đợt Flash Sale (~50,000 người dùng đồng thời, 300–500 yêu cầu đặt vé/phút) đảm bảo các tính chất:
-- **Không bán vượt quá số lượng vé (Zero Overselling)**
-- **Không ghi nhận trùng lặp đơn hàng (Zero Duplicate Bookings)**
-- **Ngăn chặn gian lận mã giảm giá (Zero Voucher Abuse)**
-- **Đảm bảo tính nhất quán dữ liệu dưới môi trường truy cập song song cao**
+### Tại sao chọn Kiến trúc Modular Monolith?
+1. **High Cohesion & Low Coupling**: Mỗi mô-đun (Concert, Booking, Voucher, Payment, Admin) tự đóng gói toàn bộ Domain Model, Service, Repository và Controller của riêng mình. 
+2. **Sẵn sàng cho Microservices (Microservices-Ready)**: Các mô-đun giao tiếp với nhau qua các Interface/DTO rõ ràng. Trong tương lai, nếu lưu lượng tăng vọt, từng mô-đun (ví dụ: `booking-module`) có thể tách ra thành Microservice độc lập mà không cần viết lại ứng dụng.
+3. **Quản lý ranh giới nghiệp vụ (Clear Bounded Contexts)**: Giúp mã nguồn dễ bảo trì, dễ viết Unit/Integration test độc lập cho từng module.
 
-### 1.1 System Architecture Diagram
+---
+
+### 1.1 Modular Package Structure
+
+```
+com.geekup.ticketbooking/
+├── common/                  # Shared Infrastructure & Cross-Cutting Concerns
+│   ├── config/              # Redis, Redisson, Async, Web MVC Configs
+│   ├── dto/                 # ApiResponse<T>, ErrorResponse, PageResult<T>
+│   ├── exception/           # ApplicationException & GlobalExceptionHandler
+│   ├── filter/              # IdempotencyFilter, RateLimitFilter, UserIdHeaderFilter
+│   └── lock/                # DistributedLockAspect / Redisson Utilities
+└── module/
+    ├── concert/             # Concert Catalog Domain Module (Quản lý sự kiện & Hạng vé)
+    │   ├── controller/      # ConcertController
+    │   ├── entity/          # Concert, TicketCategory
+    │   ├── repository/      # ConcertRepository, TicketCategoryRepository
+    │   └── service/         # ConcertService, InventoryCacheService
+    ├── booking/             # Booking & Reservation Domain Module (Giữ vé & State Machine)
+    │   ├── controller/      # BookingController
+    │   ├── entity/          # Booking, BookingItem, BookingState (Enum)
+    │   ├── repository/      # BookingRepository, BookingItemRepository
+    │   ├── scheduler/       # BookingExpiryScheduler (Background Job quét vé hết hạn)
+    │   └── service/         # BookingService, IdempotencyService
+    ├── voucher/             # Voucher & Campaign Domain Module (Mã giảm giá & Khóa phân tán)
+    │   ├── controller/      # VoucherController
+    │   ├── entity/          # VoucherCampaign, Voucher
+    │   ├── repository/      # VoucherCampaignRepository, VoucherRepository
+    │   └── service/         # VoucherService, VoucherLockService
+    ├── payment/             # Payment Domain Module (Thanh toán & Mock Payment Gateway)
+    │   ├── controller/      # PaymentController
+    │   ├── gateway/         # MockPaymentGateway (Giả lập cổng thanh toán)
+    │   └── service/         # PaymentService
+    └── admin/               # Operator Admin Domain Module (Quản trị & Báo cáo)
+        ├── controller/      # AdminController
+        └── service/         # AdminService
+```
+
+---
+
+### 1.2 System Architecture Diagram (Modular Monolith)
 
 ```mermaid
 flowchart TD
-    subgraph Clients ["Clients"]
+    subgraph Clients ["Clients Layer"]
         C["Customer App / Web"]
         O["Operator Dashboard"]
     end
 
-    subgraph SecurityLayer ["Backend: Security & Cross-Cutting Layer"]
+    subgraph CrossCutting ["Common / Cross-Cutting Layer"]
         UH["UserIdHeaderFilter"]
-        RL["RateLimitFilter"]
-        IF["IdempotencyFilter"]
+        RL["RateLimitFilter (Redis Sliding Window)"]
+        IF["IdempotencyFilter (Redis 24h TTL)"]
         GEH["GlobalExceptionHandler"]
     end
 
-    subgraph ControllerLayer ["Backend: Presentation / Controller Layer"]
-        CC["ConcertController"]
-        BC["BookingController"]
-        PC["PaymentController"]
-        AC["AdminController"]
+    subgraph ModularMonolith ["Spring Boot Modular Monolith"]
+        subgraph ConcertModule ["Concert Module"]
+            CC["ConcertController"]
+            CS["ConcertService"]
+            CR["ConcertRepository"]
+            TCR["TicketCategoryRepository"]
+        end
+
+        subgraph BookingModule ["Booking Module (Core Flash-Sale)"]
+            BC["BookingController"]
+            BS["BookingService"]
+            BR["BookingRepository"]
+            EX["BookingExpiryScheduler"]
+        end
+
+        subgraph VoucherModule ["Voucher Module"]
+            VC["VoucherController"]
+            VS["VoucherService"]
+            VL["VoucherLockService (Redisson)"]
+            VR["VoucherRepository"]
+        end
+
+        subgraph PaymentModule ["Payment Module"]
+            PC["PaymentController"]
+            PS["PaymentService"]
+            PG["MockPaymentGateway"]
+        end
+
+        subgraph AdminModule ["Admin Module"]
+            AC["AdminController"]
+            AS["AdminService"]
+        end
     end
 
-    subgraph ServiceLayer ["Backend: Business Logic / Service Layer"]
-        CS["ConcertService"]
-        BS["BookingService"]
-        VS["VoucherService"]
-        PS["PaymentService"]
-        AS["AdminService"]
-        EX["BookingExpiryScheduler"]
+    subgraph DataStores ["Infrastructure & Data Stores"]
+        DB[(PostgreSQL 15 - Primary Database)]
+        RD[(Redis 7 - Caching & Locks)]
     end
 
-    subgraph CacheLayer ["Backend: Caching & Concurrency Layer"]
-        VL["VoucherLockService"]
-        IC["InventoryCache"]
-        IK["IdempotencyService"]
-    end
+    C -->|"HTTP REST"| CrossCutting
+    O -->|"HTTP REST"| CrossCutting
 
-    subgraph RepoLayer ["Backend: Data Access / Repository Layer"]
-        CR["ConcertRepository"]
-        BR["BookingRepository"]
-        TCR["TicketCategoryRepository"]
-        VR["VoucherRepository"]
-        VCR["VoucherCampaignRepository"]
-    end
+    CrossCutting --> ConcertModule
+    CrossCutting --> BookingModule
+    CrossCutting --> VoucherModule
+    CrossCutting --> PaymentModule
+    CrossCutting --> AdminModule
 
-    subgraph Infra ["Infrastructure & Data Stores"]
-        DB[(PostgreSQL 15)]
-        RD[(Redis 7)]
-        PG["Mock Payment Gateway"]
-    end
+    BookingModule -->|"Atomic CAS / Inventory Update"| ConcertModule
+    BookingModule -->|"Validate & Apply Voucher"| VoucherModule
+    PaymentModule -->|"Update Booking State"| BookingModule
+    AdminModule --> ConcertModule & BookingModule & VoucherModule
 
-    C -->|"HTTP REST"| CC
-    C -->|"HTTP REST"| BC
-    C -->|"HTTP REST"| PC
-    O -->|"HTTP REST"| AC
-
-    CC --> IF
-    BC --> IF
-    PC --> IF
-    AC --> IF
-
-    IF --> RL
-    RL --> UH
-
-    CC --> CS
-    BC --> BS
-    PC --> BS
-    AC --> AS
-    AC --> CS
-    AC --> VS
-
-    BS --> VS
-    BS --> PS
-    BS --> VL
-    BS --> IC
-    BS --> IK
-    EX --> BR
-    EX --> IC
-
-    CS --> CR
-    CS --> TCR
-    BS --> BR
-    VS --> VR
-    VS --> VCR
-    AS --> BR
-    AS --> CR
-    AS --> TCR
-    AS --> VR
-    AS --> VCR
-
-    BR --> DB
-    CR --> DB
-    TCR --> DB
-    VR --> DB
-    VCR --> DB
-
-    VL --> RD
-    IC --> RD
-    IK --> RD
+    CR & TCR & BR & VR --> DB
+    VL & IF & RL --> RD
     PS --> PG
 ```
 
@@ -117,7 +127,7 @@ flowchart TD
 
 ## 2. API Response & Error Handling Standards
 
-Tất cả các API endpoints thuộc hệ thống đều trả về cấu trúc response thống nhất thông qua lớp bao đệm `ApiResponse<T>`.
+Tất cả các API endpoints thuộc các mô-đun đều trả về cấu trúc response thống nhất thông qua lớp bao đệm `ApiResponse<T>` trong gói `common.dto`.
 
 ### 2.1 Standard Success Envelope
 ```json
@@ -233,7 +243,7 @@ sequenceDiagram
 
 ## 4. Booking State Machine
 
-Mỗi `Booking` trong hệ thống tuân theo một State Machine nghiêm ngặt để đảm bảo trạng thái vé và tồn kho luôn đồng bộ.
+Mỗi `Booking` trong mô-đun `booking` tuân theo một State Machine nghiêm ngặt để đảm bảo trạng thái vé và tồn kho luôn đồng bộ.
 
 ```mermaid
 stateDiagram-v2
@@ -266,7 +276,7 @@ stateDiagram-v2
 
 ## 5. Exception & HTTP Error Code Mapping
 
-Tất cả ngoại lệ trong hệ thống kế thừa từ `ApplicationException` và được xử lý tập trung qua `@ControllerAdvice` (`GlobalExceptionHandler`).
+Tất cả ngoại lệ trong hệ thống kế thừa từ `ApplicationException` và được xử lý tập trung qua `@ControllerAdvice` (`GlobalExceptionHandler`) thuộc gói `common`.
 
 | Exception Class | HTTP Status | Error Code | Mô tả |
 |---|---|---|---|

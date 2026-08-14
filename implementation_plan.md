@@ -6,21 +6,20 @@ Xây dựng hệ thống backend cho Nền tảng Đặt vé Sự kiện Âm nh�
 ---
 
 ## Kiến trúc Hệ thống (System Architecture)
-Hệ thống sẽ được thiết kế theo mô hình **Layered Architecture (Kiến trúc phân tầng)** kết hợp với mô hình **Monolithic** (phù hợp với scope bài test), chia thành các tầng rõ rệt:
+Hệ thống được thiết kế theo mô hình **Modular Monolith (Monolith phân mô-đun theo Domain Context / Package-by-Feature)** kết hợp với kiến trúc phân tầng nội bộ từng module, bao gồm các miền nghiệp vụ được đóng gói độc lập:
 
-1. **API / Presentation Layer (`controllers`)**: 
-   - Đảm nhận tiếp nhận HTTP requests, xử lý cơ bản và validation đầu vào bằng annotation (`@Valid`).
-   - Format dữ liệu trả về theo một chuẩn chung (ví dụ: `ApiResponse<T>`).
-2. **Business Logic Layer (`services`)**:
-   - Chứa toàn bộ logic cốt lõi. 
-   - Quản lý các luồng Transaction (`@Transactional`) để đảm bảo tính toàn vẹn (ACID).
-3. **Data Access Layer (`repositories`)**:
-   - Giao tiếp với PostgreSQL thông qua **Spring Data JPA / Hibernate**.
-4. **Caching & Concurrency Control Layer**:
-   - Sử dụng **Redis**. Tầng này can thiệp vào tầng Service để thực hiện cơ chế **Distributed Lock** (khóa phân tán) giúp chống Overselling trong tình huống nhiều request đồng thời, hoặc làm Cache để giảm tải DB khi truy vấn dữ liệu ít thay đổi (ví dụ: danh sách Concert).
-5. **Cross-cutting Concerns**:
-   - **Global Exception Handler** (`@ControllerAdvice`) để xử lý lỗi tập trung.
-   - Interceptors/Filters để bắt và xác thực `Idempotency-Key` chống duplicate bookings.
+1. **Common Module (`common`)**: 
+   - Chứa các Cross-Cutting Concerns dùng chung: `ApiResponse<T>`, `GlobalExceptionHandler`, `IdempotencyFilter`, `RateLimitFilter`, `UserIdHeaderFilter`, và cấu hình Redis/Redisson.
+2. **Concert Module (`module.concert`)**: 
+   - Quản lý sự kiện âm nhạc, danh sách biểu diễn và hạng vé (`TicketCategory`). Đóng gói Controller, Service, JPA Repository và Redis Read-Cache cho thông tin kho vé.
+3. **Booking Module (`module.booking`)**: 
+   - Trọng tâm xử lý Flash Sale: tạo đơn giữ vé 15 phút, quản lý State Machine (`PENDING`, `AWAITING_PAYMENT`, `CONFIRMED`, `CANCELLED`, `EXPIRED`), thực thi **Atomic CAS Update** trực tiếp tại DB để chống overselling, và `BookingExpiryScheduler` trả vé tự động.
+4. **Voucher Module (`module.voucher`)**: 
+   - Quản lý chiến dịch khuyến mãi, kiểm tra tính hợp lệ và xử lý chống gian lận lạm dụng voucher bằng khóa phân tán **Redisson Fine-Grained Lock** (`lock:voucher:{userId}:{voucherId}`).
+5. **Payment Module (`module.payment`)**: 
+   - Tiếp nhận yêu cầu thanh toán, tương tác với `MockPaymentGateway` (giả lập các kịch bản SUCCESS, FAILED, TIMEOUT) và cập nhật trạng thái đơn hàng.
+6. **Admin Module (`module.admin`)**: 
+   - Dành cho Operator quản trị: khởi tạo concert, công khai sự kiện, hủy đơn thủ công và theo dõi báo cáo.
 
 ---
 

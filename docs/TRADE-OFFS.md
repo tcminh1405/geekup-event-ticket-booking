@@ -79,3 +79,21 @@ flowchart TD
 
 - **Fail-Open (Idempotency & Rate Limit)**: Đảm bảo khách hàng không bị chặn mua vé hợp lệ chỉ vì Redis caching layer gặp sự cố tạm thời. PostgreSQL vẫn có unique constraint `idempotency_key` làm lá chắn cuối cùng.
 - **PostgreSQL làm Single Source of Truth**: Mọi giao dịch tiền bạc và số lượng vé đều được ghi chép và xác thực trước tiên tại PostgreSQL.
+
+---
+
+## 5. Architectural Style: Modular Monolith vs Layered Monolith vs Microservices
+
+### 5.1 So sánh 3 mô hình kiến trúc
+
+| Tiêu chí | Traditional Layered Monolith | Microservices Architecture | Modular Monolith (Package-by-Feature) - **ĐƯỢC CHỌN** |
+|---|---|---|---|
+| **Phân chia Package** | Chia theo kỹ thuật: `controllers`, `services`, `repositories` | Chia theo các dịch vụ chạy độc lập (REST/gRPC/Kafka) | Chia theo miền nghiệp vụ Bounded Context: `module.concert`, `module.booking`, `module.voucher` |
+| **Tính đóng gói (Encapsulation)** | Thấp: Tất cả Service nằm chung gói, dễ dính vòng lặp phụ thuộc | Rất cao: Mỗi service sở hữu DB riêng | **Cao**: Mỗi module quản lý Domain Model & Repo riêng, chỉ expose Interface cần thiết |
+| **Phức tạp vận hành** | Thấp nhất (1 deployment artifact) | Phụ thuộc hạ tầng (K8s, API Gateway, Distributed Tracing) | **Thấp** (1 deployment artifact JAR/Docker) |
+| **Khả năng mở rộng tương lai** | Khó tách rời khi codebase phình to | Đã tách sẵn | **Rất dễ chuyển đổi thành Microservices** khi cần thiết |
+
+### 5.2 Lý do chọn Modular Monolith
+Hệ thống lựa chọn **Modular Monolith** vì mang lại sự cân bằng hoàn hảo:
+- **Tận dụng lợi thế của Monolith**: Đơn giản trong việc deploy 1 file JAR, quản lý Transaction ACID liên module dễ dàng mà không bị Distributed Transaction (SAGA/2PC) làm phức tạp.
+- **Đạt được ưu điểm của Microservices**: Ranh giới giữa các Module (Concert, Booking, Voucher, Payment, Admin) được quy định chặt chẽ theo tư duy Domain-Driven Design (DDD). Trong tương lai nếu đợt Flash Sale yêu cầu scale riêng luồng Booking, `module.booking` có thể được bóc tách thành Microservice độc lập chỉ trong thời gian ngắn.
