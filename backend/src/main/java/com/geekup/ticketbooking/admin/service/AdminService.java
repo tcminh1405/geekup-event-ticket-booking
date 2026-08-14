@@ -244,6 +244,12 @@ public class AdminService {
         }
         booking.setState(targetState);
 
+        if (targetState == BookingState.CONFIRMED) {
+            booking.getItems().forEach(item -> ticketCategoryRepository
+                    .incrementSoldQuantity(item.getTicketCategory().getId(), item.getQuantity()));
+            booking.setPaymentTimestamp(java.time.LocalDateTime.now());
+        }
+
         if (targetState == BookingState.CANCELLED) {
             // Reuse the booking flow so cache updates run after commit.
             bookingService.restoreInventory(booking);
@@ -280,6 +286,13 @@ public class AdminService {
             throw new ValidationException(
                     "INVALID_CAMPAIGN_DATES",
                     "Campaign end date must not be before the start date.");
+        }
+
+        if ("PERCENTAGE".equals(request.getDiscountType())
+                && request.getDiscountValue().compareTo(BigDecimal.valueOf(100)) > 0) {
+            throw new ValidationException(
+                    "INVALID_DISCOUNT_VALUE",
+                    "A percentage discount cannot exceed 100.");
         }
 
         BigDecimal minAmount = request.getMinBookingAmount() != null

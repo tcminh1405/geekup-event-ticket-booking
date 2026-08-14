@@ -32,7 +32,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -111,6 +113,15 @@ public class BookingService {
                     "Concert with id " + request.getConcertId() + " is not published.");
         }
 
+        Set<Long> requestedCategoryIds = new HashSet<>();
+        for (BookingItemRequest itemReq : request.getItems()) {
+            if (!requestedCategoryIds.add(itemReq.getTicketCategoryId())) {
+                throw new ValidationException(
+                        "DUPLICATE_TICKET_CATEGORY",
+                        "Each ticket category may appear only once in a booking request.");
+            }
+        }
+
         // Resolve each ticket category — validate it exists and belongs to this concert
         List<TicketCategory> categories = new ArrayList<>();
         for (BookingItemRequest itemReq : request.getItems()) {
@@ -183,7 +194,9 @@ public class BookingService {
         // Set back-reference on items
         items.forEach(item -> item.setBooking(booking));
 
-        Booking savedBooking = bookingRepository.save(booking);
+        // Detect the durable idempotency-key race before voucher processing.
+        // The controller replays the winner after the losing transaction rolls back.
+        Booking savedBooking = bookingRepository.saveAndFlush(booking);
 
         // Step 4 — Apply voucher if provided
         if (request.getVoucherCode() != null && !request.getVoucherCode().isBlank()) {
@@ -311,6 +324,14 @@ public class BookingService {
     public Page<BookingResponse> listBookings(Long userId, Pageable pageable) {
         return bookingRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable)
                 .map(this::toBookingResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public BookingResponse findByIdempotencyKey(Long userId, String idempotencyKey) {
+        return bookingRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)
+                .map(this::toBookingResponse)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "BOOKING_NOT_FOUND", "No booking exists for the supplied idempotency key."));
     }
 
     /**

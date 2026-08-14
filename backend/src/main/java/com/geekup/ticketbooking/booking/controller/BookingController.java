@@ -17,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -71,9 +72,16 @@ public class BookingController {
 
             @Valid @RequestBody ReserveBookingRequest request) {
 
-        BookingResponse response = bookingService.reserve(userId, request, idempotencyKey);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(response));
+        try {
+            BookingResponse response = bookingService.reserve(userId, request, idempotencyKey);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ApiResponse.success(response));
+        } catch (DataIntegrityViolationException exception) {
+            // The unique (user_id, idempotency_key) constraint is the durable
+            // fallback when Redis is unavailable or its in-flight claim expires.
+            BookingResponse response = bookingService.findByIdempotencyKey(userId, idempotencyKey);
+            return ResponseEntity.ok(ApiResponse.success(response));
+        }
     }
 
     /**
