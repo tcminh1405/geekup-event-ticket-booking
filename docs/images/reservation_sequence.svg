@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 640" width="100%" height="100%" style="background-color: #0f172a; font-family: system-ui, -apple-system, sans-serif;">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#38bdf8"/>
+    </marker>
+    <marker id="arrowDashed" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#34d399"/>
+    </marker>
+  </defs>
+
+  <text x="480" y="35" fill="#f8fafc" font-size="20" font-weight="bold" text-anchor="middle">Reservation Request Processing Flow</text>
+  <text x="480" y="55" fill="#94a3b8" font-size="13" text-anchor="middle">Concurrency Control &amp; Atomic CAS Transaction Sequence</text>
+
+  <!-- Lifeline Participants -->
+  <g fill="#1e293b" stroke="#334155" stroke-width="1">
+    <rect x="50" y="75" width="110" height="35" rx="6"/><text x="105" y="97" fill="#38bdf8" font-size="12" font-weight="bold" text-anchor="middle">Customer</text>
+    <rect x="190" y="75" width="130" height="35" rx="6"/><text x="255" y="97" fill="#e2e8f0" font-size="12" font-weight="bold" text-anchor="middle">IdempotencyFilter</text>
+    <rect x="350" y="75" width="110" height="35" rx="6"/><text x="405" y="97" fill="#ef4444" font-size="12" font-weight="bold" text-anchor="middle">Redis Cache</text>
+    <rect x="490" y="75" width="120" height="35" rx="6"/><text x="550" y="97" fill="#60a5fa" font-size="12" font-weight="bold" text-anchor="middle">BookingService</text>
+    <rect x="640" y="75" width="140" height="35" rx="6"/><text x="710" y="97" fill="#f59e0b" font-size="12" font-weight="bold" text-anchor="middle">VoucherLockService</text>
+    <rect x="800" y="75" width="110" height="35" rx="6"/><text x="855" y="97" fill="#10b981" font-size="12" font-weight="bold" text-anchor="middle">PostgreSQL DB</text>
+  </g>
+
+  <!-- Vertical Lines -->
+  <line x1="105" y1="110" x2="105" y2="600" stroke="#334155" stroke-dasharray="4,4"/>
+  <line x1="255" y1="110" x2="255" y2="600" stroke="#334155" stroke-dasharray="4,4"/>
+  <line x1="405" y1="110" x2="405" y2="600" stroke="#334155" stroke-dasharray="4,4"/>
+  <line x1="550" y1="110" x2="550" y2="600" stroke="#334155" stroke-dasharray="4,4"/>
+  <line x1="710" y1="110" x2="710" y2="600" stroke="#334155" stroke-dasharray="4,4"/>
+  <line x1="855" y1="110" x2="855" y2="600" stroke="#334155" stroke-dasharray="4,4"/>
+
+  <!-- Step 1 -->
+  <path d="M 105 145 L 255 145" stroke="#38bdf8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="180" y="140" fill="#cbd5e1" font-size="11" text-anchor="middle">1. POST /bookings/reserve</text>
+
+  <!-- Step 2 -->
+  <path d="M 255 180 L 405 180" stroke="#38bdf8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="330" y="175" fill="#cbd5e1" font-size="11" text-anchor="middle">2. Check Idempotency Key</text>
+
+  <!-- Step 3 -->
+  <path d="M 255 215 L 550 215" stroke="#38bdf8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="400" y="210" fill="#cbd5e1" font-size="11" text-anchor="middle">3. Pass filter &amp; begin transaction</text>
+
+  <!-- Step 4: CAS update -->
+  <rect x="530" y="250" width="345" height="40" rx="6" fill="#1e1b4b" stroke="#6366f1" stroke-width="1"/>
+  <text x="702" y="267" fill="#a5b4fc" font-size="11" font-weight="bold" text-anchor="middle">4. Atomic CAS Inventory Deduction</text>
+  <text x="702" y="282" fill="#818cf8" font-size="10" text-anchor="middle">UPDATE ticket_categories SET available = available - N WHERE available &gt;= N</text>
+
+  <!-- Step 5: Insert Booking -->
+  <path d="M 550 315 L 855 315" stroke="#38bdf8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="702" y="310" fill="#cbd5e1" font-size="11" text-anchor="middle">5. INSERT INTO bookings (PENDING, 15m deadline)</text>
+
+  <!-- Step 6: Voucher lock -->
+  <path d="M 550 360 L 710 360" stroke="#f59e0b" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="630" y="355" fill="#fcd34d" font-size="11" text-anchor="middle">6. Acquire Redisson Lock (userId + voucherId)</text>
+
+  <!-- Step 7: Voucher validation -->
+  <path d="M 710 400 L 855 400" stroke="#38bdf8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="782" y="395" fill="#cbd5e1" font-size="11" text-anchor="middle">7. Check &amp; Increment Voucher Usage</text>
+
+  <!-- Step 8: Commit -->
+  <path d="M 550 450 L 855 450" stroke="#10b981" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="702" y="445" fill="#6ee7b7" font-size="11" font-weight="bold" text-anchor="middle">8. COMMIT TRANSACTION</text>
+
+  <!-- Step 9: Async Cache update -->
+  <path d="M 550 495 L 405 495" stroke="#34d399" stroke-width="1.5" stroke-dasharray="4,4" marker-end="url(#arrowDashed)"/>
+  <text x="477" y="490" fill="#a7f3d0" font-size="11" text-anchor="middle">9. Async update Redis cache &amp; Set Idempotency</text>
+
+  <!-- Step 10: Response -->
+  <path d="M 550 545 L 105 545" stroke="#34d399" stroke-width="1.5" stroke-dasharray="4,4" marker-end="url(#arrowDashed)"/>
+  <text x="327" y="540" fill="#a7f3d0" font-size="11" font-weight="bold" text-anchor="middle">10. HTTP 201 Created { bookingId, totalAmount, paymentDeadline }</text>
+</svg>

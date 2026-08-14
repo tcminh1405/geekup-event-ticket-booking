@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 780" width="100%" height="100%" style="background-color: #0f172a; font-family: system-ui, -apple-system, sans-serif;">
+  <defs>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#38bdf8"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="460" y="40" fill="#f8fafc" font-size="22" font-weight="bold" text-anchor="middle">System Architecture Diagram</text>
+  <text x="460" y="62" fill="#94a3b8" font-size="14" text-anchor="middle">Concert Ticket Booking Platform (Layered Monolithic Architecture)</text>
+
+  <!-- CLIENTS LAYER -->
+  <rect x="40" y="90" width="840" height="90" rx="12" fill="url(#cardGrad)" stroke="#334155" stroke-width="1.5"/>
+  <text x="60" y="115" fill="#38bdf8" font-size="14" font-weight="bold">CLIENT LAYER</text>
+  
+  <rect x="180" y="125" width="240" height="42" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+  <text x="300" y="151" fill="#f8fafc" font-size="14" font-weight="600" text-anchor="middle">📱 Customer Web / App</text>
+
+  <rect x="500" y="125" width="240" height="42" rx="8" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+  <text x="620" y="151" fill="#f8fafc" font-size="14" font-weight="600" text-anchor="middle">🖥️ Operator Dashboard</text>
+
+  <!-- Arrow down -->
+  <path d="M 460 180 L 460 210" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)"/>
+  <rect x="405" y="187" width="110" height="18" rx="4" fill="#0f172a"/>
+  <text x="460" y="200" fill="#94a3b8" font-size="11" text-anchor="middle">HTTP REST APIs</text>
+
+  <!-- BACKEND APPLICATION -->
+  <rect x="40" y="215" width="840" height="430" rx="12" fill="url(#cardGrad)" stroke="#3b82f6" stroke-width="2"/>
+  <text x="60" y="240" fill="#60a5fa" font-size="15" font-weight="bold">SPRING BOOT BACKEND APPLICATION</text>
+
+  <!-- Security & Filters -->
+  <rect x="60" y="255" width="800" height="60" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="80" y="275" fill="#94a3b8" font-size="12" font-weight="bold">Cross-Cutting &amp; Security Layer</text>
+  <rect x="80" y="282" width="170" height="24" rx="4" fill="#334155"/><text x="165" y="298" fill="#e2e8f0" font-size="11" text-anchor="middle">UserIdHeaderFilter</text>
+  <rect x="270" y="282" width="170" height="24" rx="4" fill="#334155"/><text x="355" y="298" fill="#e2e8f0" font-size="11" text-anchor="middle">RateLimitFilter</text>
+  <rect x="460" y="282" width="170" height="24" rx="4" fill="#334155"/><text x="545" y="298" fill="#e2e8f0" font-size="11" text-anchor="middle">IdempotencyFilter</text>
+  <rect x="650" y="282" width="190" height="24" rx="4" fill="#334155"/><text x="745" y="298" fill="#e2e8f0" font-size="11" text-anchor="middle">GlobalExceptionHandler</text>
+
+  <!-- Presentation / Controller Layer -->
+  <rect x="60" y="330" width="800" height="60" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="80" y="350" fill="#94a3b8" font-size="12" font-weight="bold">Presentation / Controller Layer</text>
+  <rect x="80" y="357" width="170" height="24" rx="4" fill="#1e40af"/><text x="165" y="373" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">ConcertController</text>
+  <rect x="270" y="357" width="170" height="24" rx="4" fill="#1e40af"/><text x="355" y="373" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">BookingController</text>
+  <rect x="460" y="357" width="170" height="24" rx="4" fill="#1e40af"/><text x="545" y="373" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">PaymentController</text>
+  <rect x="650" y="357" width="190" height="24" rx="4" fill="#1e40af"/><text x="745" y="373" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">AdminController</text>
+
+  <!-- Business Logic / Service Layer -->
+  <rect x="60" y="405" width="800" height="65" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="80" y="425" fill="#94a3b8" font-size="12" font-weight="bold">Business Logic / Service Layer</text>
+  <rect x="80" y="432" width="110" height="26" rx="4" fill="#0369a1"/><text x="135" y="449" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">ConcertService</text>
+  <rect x="200" y="432" width="110" height="26" rx="4" fill="#0369a1"/><text x="255" y="449" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">BookingService</text>
+  <rect x="320" y="432" width="110" height="26" rx="4" fill="#0369a1"/><text x="375" y="449" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">VoucherService</text>
+  <rect x="440" y="432" width="110" height="26" rx="4" fill="#0369a1"/><text x="495" y="449" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">PaymentService</text>
+  <rect x="560" y="432" width="110" height="26" rx="4" fill="#0369a1"/><text x="615" y="449" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">AdminService</text>
+  <rect x="680" y="432" width="160" height="26" rx="4" fill="#b45309"/><text x="760" y="449" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">BookingExpiryScheduler</text>
+
+  <!-- Caching & Concurrency Layer -->
+  <rect x="60" y="485" width="800" height="60" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="80" y="505" fill="#94a3b8" font-size="12" font-weight="bold">Caching &amp; Concurrency Control Layer</text>
+  <rect x="180" y="512" width="150" height="24" rx="4" fill="#7c3aed"/><text x="255" y="528" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">VoucherLockService</text>
+  <rect x="350" y="512" width="150" height="24" rx="4" fill="#7c3aed"/><text x="425" y="528" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">InventoryCache</text>
+  <rect x="520" y="512" width="160" height="24" rx="4" fill="#7c3aed"/><text x="600" y="528" fill="#ffffff" font-size="11" font-weight="bold" text-anchor="middle">IdempotencyService</text>
+
+  <!-- Data Access / Repository Layer -->
+  <rect x="60" y="560" width="800" height="65" rx="8" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+  <text x="80" y="580" fill="#94a3b8" font-size="12" font-weight="bold">Data Access / Repository Layer</text>
+  <rect x="80" y="587" width="140" height="26" rx="4" fill="#334155"/><text x="150" y="604" fill="#cbd5e1" font-size="11" text-anchor="middle">ConcertRepository</text>
+  <rect x="230" y="587" width="140" height="26" rx="4" fill="#334155"/><text x="300" y="604" fill="#cbd5e1" font-size="11" text-anchor="middle">BookingRepository</text>
+  <rect x="380" y="587" width="160" height="26" rx="4" fill="#334155"/><text x="460" y="604" fill="#cbd5e1" font-size="11" text-anchor="middle">TicketCategoryRepo</text>
+  <rect x="550" y="587" width="140" height="26" rx="4" fill="#334155"/><text x="620" y="604" fill="#cbd5e1" font-size="11" text-anchor="middle">VoucherRepository</text>
+  <rect x="700" y="587" width="140" height="26" rx="4" fill="#334155"/><text x="770" y="604" fill="#cbd5e1" font-size="11" text-anchor="middle">CampaignRepository</text>
+
+  <!-- Arrow down to Infra -->
+  <path d="M 460 645 L 460 670" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- INFRASTRUCTURE LAYER -->
+  <rect x="40" y="675" width="840" height="85" rx="12" fill="url(#cardGrad)" stroke="#10b981" stroke-width="1.5"/>
+  <text x="60" y="698" fill="#34d399" font-size="14" font-weight="bold">INFRASTRUCTURE &amp; DATA STORES</text>
+
+  <rect x="120" y="708" width="200" height="40" rx="8" fill="#064e3b" stroke="#10b981" stroke-width="1"/>
+  <text x="220" y="733" fill="#a7f3d0" font-size="13" font-weight="bold" text-anchor="middle">🐘 PostgreSQL 15 (DB)</text>
+
+  <rect x="360" y="708" width="200" height="40" rx="8" fill="#7f1d1d" stroke="#ef4444" stroke-width="1"/>
+  <text x="460" y="733" fill="#fca5a5" font-size="13" font-weight="bold" text-anchor="middle">⚡ Redis 7 (Cache/Locks)</text>
+
+  <rect x="600" y="708" width="200" height="40" rx="8" fill="#1e1b4b" stroke="#6366f1" stroke-width="1"/>
+  <text x="700" y="733" fill="#c7d2fe" font-size="13" font-weight="bold" text-anchor="middle">💳 Mock Payment Gateway</text>
+</svg>
