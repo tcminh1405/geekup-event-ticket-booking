@@ -521,39 +521,29 @@ After prework analysis and property reflection, the following 7 properties were 
 Exception classes are kept intentionally flat to reduce subtype proliferation. A small number of base exception types carry a `code` field, and the `GlobalExceptionHandler` maps that code to the appropriate HTTP status and error response.
 
 ```
-ApplicationException (runtime)            ← base; carries errorCode field
-├── ResourceNotFoundException (→ 404)     ← e.g., new ResourceNotFoundException("CONCERT_NOT_FOUND", ...)
-├── ConflictException (→ 409)             ← e.g., new ConflictException("TICKET_SOLD_OUT", ...)
-├── ValidationException (→ 422)           ← e.g., new ValidationException("INVALID_QUANTITY", ...)
-├── ForbiddenException (→ 403)
-├── ServiceBusyException (→ 503)          ← lock timeout
-└── PaymentGatewayTimeoutException (→ 504)
+ApplicationException (runtime)                  ← base; carries errorCode field
+├── ResourceNotFoundException (→ 404)           ← "CONCERT_NOT_FOUND", "BOOKING_NOT_FOUND", "VOUCHER_NOT_FOUND", ...
+├── ConflictException (→ 409)                   ← "TICKET_SOLD_OUT", "VOUCHER_ALREADY_USED", "VOUCHER_EXHAUSTED", "INVALID_BOOKING_STATE"
+├── ValidationException (→ 422)                 ← "INVALID_QUANTITY", "INVALID_STATE_TRANSITION", "VOUCHER_CAMPAIGN_INACTIVE", "VOUCHER_MINIMUM_NOT_MET", "MISSING_IDEMPOTENCY_KEY"
+├── ForbiddenException (→ 403)                  ← "FORBIDDEN"
+├── ServiceBusyException (→ 503)                ← "SERVICE_BUSY" (lock timeout, includes Retry-After: 2)
+├── PaymentFailedException (→ 402)              ← "PAYMENT_FAILED"
+└── PaymentGatewayTimeoutException (→ 504)      ← "PAYMENT_GATEWAY_TIMEOUT"
 ```
-
-Specific named subclasses (e.g., `TicketSoldOutException`, `VoucherNotFoundException`) are optional convenience wrappers and may be collapsed into the base types above using the `code` field. All HTTP status and error code mappings below are preserved regardless of whether dedicated subclasses are used.
 
 ### GlobalExceptionHandler Mappings
 
-| Exception | HTTP Status | Error Code |
+| Exception class | HTTP Status | Example error codes |
 |---|---|---|
-| `TicketSoldOutException` | 409 | `TICKET_SOLD_OUT` |
-| `IdempotencyKeyMissingException` | 400 | `MISSING_IDEMPOTENCY_KEY` |
-| `InvalidQuantityException` | 422 | `INVALID_QUANTITY` |
-| `VoucherNotFoundException` | 404 | `VOUCHER_NOT_FOUND` |
-| `VoucherAlreadyUsedException` | 409 | `VOUCHER_ALREADY_USED` |
-| `VoucherExhaustedException` | 409 | `VOUCHER_EXHAUSTED` |
-| `VoucherCampaignInactiveException` | 422 | `VOUCHER_CAMPAIGN_INACTIVE` |
-| `VoucherMinimumNotMetException` | 422 | `VOUCHER_MINIMUM_NOT_MET` |
-| `InvalidBookingStateException` | 409 | `INVALID_BOOKING_STATE` |
-| `InvalidStateTransitionException` | 422 | `INVALID_STATE_TRANSITION` |
-| `BookingNotFoundException` | 404 | `BOOKING_NOT_FOUND` |
-| `ConcertNotFoundException` | 404 | `CONCERT_NOT_FOUND` |
-| `ServiceBusyException` | 503 | `SERVICE_BUSY` |
-| `PaymentGatewayTimeoutException` | 504 | `PAYMENT_GATEWAY_TIMEOUT` |
-| `PaymentFailedException` | 402 | `PAYMENT_FAILED` |
+| `ResourceNotFoundException` | 404 | `CONCERT_NOT_FOUND`, `BOOKING_NOT_FOUND`, `VOUCHER_NOT_FOUND`, `CAMPAIGN_NOT_FOUND` |
+| `ConflictException` | 409 | `TICKET_SOLD_OUT`, `VOUCHER_ALREADY_USED`, `VOUCHER_EXHAUSTED`, `INVALID_BOOKING_STATE` |
+| `ValidationException` | 422 | `INVALID_QUANTITY`, `INVALID_STATE_TRANSITION`, `VOUCHER_CAMPAIGN_INACTIVE`, `VOUCHER_MINIMUM_NOT_MET`, `MISSING_IDEMPOTENCY_KEY` |
 | `ForbiddenException` | 403 | `FORBIDDEN` |
-| `MethodArgumentNotValidException` | 400 | `VALIDATION_ERROR` (with `fields`) |
-| `Unhandled Exception` | 500 | `INTERNAL_SERVER_ERROR` (no stack trace) |
+| `ServiceBusyException` | 503 | `SERVICE_BUSY` |
+| `PaymentFailedException` | 402 | `PAYMENT_FAILED` |
+| `PaymentGatewayTimeoutException` | 504 | `PAYMENT_GATEWAY_TIMEOUT` |
+| `MethodArgumentNotValidException` | 400 | `VALIDATION_ERROR` (with `fields` array) |
+| `Exception` (catch-all) | 500 | `INTERNAL_SERVER_ERROR` (no stack trace) |
 
 ### Redis Unavailability Strategy
 
@@ -597,79 +587,117 @@ void voucherDiscountIsComputedCorrectly(@ForAll BigDecimal amount, @ForAll @IntR
 }
 ```
 
-### Package Structure (Modular Monolith)
+### Package Structure
 
-The backend is organized by domain module, not by technical layer:
+The backend uses a **modular monolith** with layer-based sub-packages inside each domain module:
 
 ```
 com.geekup.ticketbooking/
 ├── concert/                          # Concert browsing and management
-│   ├── ConcertController.java
-│   ├── ConcertService.java
-│   ├── Concert.java                  (entity)
-│   ├── TicketCategory.java           (entity)
-│   ├── ConcertRepository.java
-│   └── TicketCategoryRepository.java
+│   ├── controller/
+│   │   └── ConcertController.java
+│   ├── service/
+│   │   └── ConcertService.java
+│   ├── entity/
+│   │   ├── Concert.java
+│   │   └── TicketCategory.java
+│   ├── repository/
+│   │   ├── ConcertRepository.java
+│   │   └── TicketCategoryRepository.java
+│   └── dto/
+│       ├── ConcertSummaryResponse.java
+│       ├── ConcertDetailResponse.java
+│       └── CreateConcertRequest.java
+│
 ├── booking/                          # Reservation, payment, state machine
-│   ├── BookingController.java
-│   ├── PaymentController.java
-│   ├── BookingService.java
-│   ├── BookingExpiryScheduler.java
-│   ├── Booking.java                  (entity)
-│   ├── BookingItem.java              (entity)
-│   ├── BookingState.java             (enum)
-│   ├── BookingRepository.java
-│   └── BookingItemRepository.java
+│   ├── controller/
+│   │   ├── BookingController.java
+│   │   └── PaymentController.java
+│   ├── service/
+│   │   └── BookingService.java
+│   ├── scheduler/
+│   │   └── BookingExpiryScheduler.java
+│   ├── entity/
+│   │   ├── Booking.java
+│   │   └── BookingItem.java
+│   ├── state/
+│   │   └── BookingState.java         (enum + VALID_TRANSITIONS)
+│   ├── repository/
+│   │   ├── BookingRepository.java
+│   │   └── BookingItemRepository.java
+│   └── dto/
+│       ├── ReserveBookingRequest.java
+│       ├── BookingResponse.java
+│       └── PaymentRequest.java
+│
 ├── voucher/                          # Voucher campaigns and discount logic
-│   ├── VoucherService.java
-│   ├── VoucherCampaign.java          (entity)
-│   ├── Voucher.java                  (entity)
-│   ├── VoucherRepository.java
-│   └── VoucherCampaignRepository.java
-├── admin/                            # Operator APIs
-│   ├── AdminConcertController.java
-│   ├── AdminBookingController.java
-│   ├── AdminVoucherController.java
-│   └── AdminService.java
+│   ├── controller/
+│   │   └── (no public customer endpoint; applied via booking)
+│   ├── service/
+│   │   └── VoucherService.java
+│   ├── entity/
+│   │   ├── VoucherCampaign.java
+│   │   └── Voucher.java
+│   ├── repository/
+│   │   ├── VoucherRepository.java
+│   │   └── VoucherCampaignRepository.java
+│   └── dto/
+│
+├── admin/                            # Operator APIs (concert, booking, voucher mgmt)
+│   ├── controller/
+│   │   ├── AdminConcertController.java
+│   │   ├── AdminBookingController.java
+│   │   └── AdminVoucherController.java
+│   ├── service/
+│   │   └── AdminService.java
+│   └── dto/
+│       ├── CreateConcertRequest.java
+│       ├── TransitionStateRequest.java
+│       ├── CreateVoucherCampaignRequest.java
+│       └── InventoryStatsResponse.java
+│
 └── shared/                           # Cross-cutting concerns
     ├── common/
-    │   └── ApiResponse.java
+    │   ├── ApiResponse.java
+    │   └── UserContext.java           (ThreadLocal<Long>)
     ├── exception/
     │   ├── ApplicationException.java
     │   ├── GlobalExceptionHandler.java
-    │   └── (all specific exception classes)
+    │   ├── ResourceNotFoundException.java  (→ 404)
+    │   ├── ConflictException.java          (→ 409)
+    │   ├── ValidationException.java        (→ 422)
+    │   ├── ForbiddenException.java         (→ 403)
+    │   ├── ServiceBusyException.java       (→ 503)
+    │   ├── PaymentFailedException.java     (→ 402)
+    │   └── PaymentGatewayTimeoutException.java (→ 504)
     ├── cache/
-    │   ├── InventoryCache.java
+    │   └── InventoryCache.java
+    ├── idempotency/
     │   └── IdempotencyService.java
     ├── filter/
     │   ├── RateLimitFilter.java
     │   ├── IdempotencyFilter.java
     │   └── UserIdHeaderFilter.java
-    └── infra/
-        ├── MockPaymentGateway.java
-        └── DataSeeder.java
+    └── infrastructure/
+        ├── payment/
+        │   └── MockPaymentGateway.java
+        └── seeder/
+            └── DataSeeder.java
 ```
 
 ### Test Structure
 
 ```
-src/test/java/
-├── concert/
-│   └── ConcertServiceTest.java              -- concert browsing examples
-├── booking/
-│   ├── BookingServiceTest.java              -- state machine, payment flow examples
-│   └── BookingExpirySchedulerTest.java      -- expiry logic examples
-├── voucher/
-│   └── VoucherServiceTest.java              -- voucher validation examples
+src/test/java/com/geekup/ticketbooking/
 ├── property/
-│   ├── BookingStateMachinePropertyTest.java -- Property 1: state machine validity
-│   ├── IdempotencyPropertyTest.java         -- Property 2: idempotency
+│   ├── BookingStateMachinePropertyTest.java -- Property 1: state machine validity (no Spring context)
+│   ├── IdempotencyPropertyTest.java         -- Property 2: idempotency (mocked Redis)
 │   ├── VoucherDiscountPropertyTest.java     -- Property 3: voucher discount calculation
-│   ├── InventoryPropertyTest.java           -- Property 4: non-negative invariant
-│   └── ConcurrencyPropertyTest.java         -- Property 5: oversell, Property 6: voucher limit, Property 7: restoration
+│   ├── InventoryPropertyTest.java           -- Property 4: non-negative invariant (Testcontainers)
+│   └── ConcurrencyPropertyTest.java         -- Property 5–7: oversell, voucher limit, restoration
 └── integration/
-    ├── ReservationIntegrationTest.java      -- full flow with real Redis/DB (Testcontainers)
-    └── FlashSaleConcurrencyTest.java        -- concurrent load test with CountDownLatch
+    ├── ReservationIntegrationTest.java      -- full reserve → pay → confirm flow (Testcontainers)
+    └── FlashSaleConcurrencyTest.java        -- Case A/B/C concurrency scenarios (CountDownLatch)
 ```
 
 ### Property Test Coverage Map
