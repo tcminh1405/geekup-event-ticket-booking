@@ -390,6 +390,7 @@ public class BookingService {
                 .paymentDeadline(booking.getPaymentDeadline())
                 .paymentTimestamp(booking.getPaymentTimestamp())
                 .createdAt(booking.getCreatedAt())
+                .suspicious(booking.isSuspicious())
                 .build();
     }
 
@@ -419,6 +420,8 @@ public class BookingService {
                 .discountAmount(booking.getDiscountAmount())
                 .voucherCode(voucherCode)
                 .idempotencyKey(booking.getIdempotencyKey())
+                .suspicious(booking.isSuspicious())
+                .suspicionReason(booking.getSuspicionReason())
                 .paymentDeadline(booking.getPaymentDeadline())
                 .paymentTimestamp(booking.getPaymentTimestamp())
                 .createdAt(booking.getCreatedAt())

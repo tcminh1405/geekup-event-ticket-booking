@@ -44,6 +44,9 @@ public class BookingDetailResponse {
     @Schema(description = "Idempotency key used during reservation", example = "a1b2c3d4-e5f6-...")
     private String idempotencyKey;
 
+    private boolean suspicious;
+    private String suspicionReason;
+
     @Schema(description = "Deadline by which payment must be made", example = "2024-01-15T10:45:00")
     private LocalDateTime paymentDeadline;
 

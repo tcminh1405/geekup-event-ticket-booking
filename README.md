@@ -89,6 +89,7 @@ This is a development-only role gate, not a substitute for production authentica
 | Customer | `POST /api/v1/bookings/reserve`, `GET /api/v1/bookings`, `GET /api/v1/bookings/{id}` |
 | Customer | `POST /api/v1/bookings/{id}/pay` |
 | Operator | `GET /api/v1/admin/bookings`, `PATCH /api/v1/admin/bookings/{id}/state` |
+| Operator | `PATCH /api/v1/admin/bookings/{id}/suspicion`, `GET /api/v1/admin/bookings?suspicious=true` |
 | Operator | `POST /api/v1/admin/concerts`, `POST /api/v1/admin/concerts/{id}/publish` |
 | Operator | `GET /api/v1/admin/concerts/{id}/inventory`, `PATCH /api/v1/admin/ticket-categories/{id}/quantity` |
 | Operator | `POST /api/v1/admin/voucher-campaigns`, `POST /api/v1/admin/voucher-campaigns/{id}/vouchers`, `GET /api/v1/admin/voucher-campaigns/{id}/stats` |
@@ -167,6 +168,8 @@ PENDING → AWAITING_PAYMENT → CONFIRMED
 - A reservation is held in `PENDING` for 15 minutes.
 - The expiry scheduler scans every 30 seconds and atomically expires only still-pending bookings.
 - `CANCELLED` and `EXPIRED` release reserved inventory and voucher usage once.
+
+Operators may also flag a booking with a short review reason through `PATCH /api/v1/admin/bookings/{id}/suspicion`; this is a manual-review workflow, not an automated fraud engine.
 
 ## Scope and limitations
 

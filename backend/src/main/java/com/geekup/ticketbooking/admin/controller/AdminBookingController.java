@@ -2,6 +2,7 @@ package com.geekup.ticketbooking.admin.controller;
 
 import com.geekup.ticketbooking.admin.dto.AdminBookingFilter;
 import com.geekup.ticketbooking.admin.dto.TransitionStateRequest;
+import com.geekup.ticketbooking.admin.dto.UpdateBookingSuspicionRequest;
 import com.geekup.ticketbooking.admin.service.AdminService;
 import com.geekup.ticketbooking.booking.dto.BookingDetailResponse;
 import com.geekup.ticketbooking.booking.dto.BookingResponse;
@@ -49,5 +50,12 @@ public class AdminBookingController {
             @PathVariable Long id,
             @Valid @RequestBody TransitionStateRequest request) {
         return ApiResponse.success(adminService.transitionBookingState(id, request.getTargetState()));
+    }
+
+    @PatchMapping("/{id}/suspicion")
+    public ApiResponse<BookingDetailResponse> updateSuspicion(
+            @PathVariable Long id, @Valid @RequestBody UpdateBookingSuspicionRequest request) {
+        return ApiResponse.success(adminService.updateBookingSuspicion(
+                id, request.isSuspicious(), request.getSuspicionReason()));
     }
 }

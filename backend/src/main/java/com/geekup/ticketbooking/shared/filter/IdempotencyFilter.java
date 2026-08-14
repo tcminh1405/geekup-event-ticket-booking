@@ -2,6 +2,7 @@ package com.geekup.ticketbooking.shared.filter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.geekup.ticketbooking.shared.common.ApiResponse;
+import com.geekup.ticketbooking.shared.common.UserContext;
 import com.geekup.ticketbooking.shared.idempotency.IdempotencyService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -62,8 +63,12 @@ public class IdempotencyFilter extends OncePerRequestFilter {
             return;
         }
 
+        // A key belongs to a customer, not to the whole platform. This avoids
+        // one customer replaying another customer's cached booking response.
+        String scopedKey = UserContext.get() + ":" + idempotencyKey;
+
         // 2. Check Redis cache for an existing response
-        Optional<String> cached = idempotencyService.getIfPresent(idempotencyKey);
+        Optional<String> cached = idempotencyService.getIfPresent(scopedKey);
         if (cached.isPresent()) {
             log.debug("[IdempotencyFilter] Returning cached response for key={}", idempotencyKey);
             replayResponse(response, cached.get());
@@ -72,7 +77,7 @@ public class IdempotencyFilter extends OncePerRequestFilter {
 
         // Claim before running the controller. A cache check followed by a
         // later store is otherwise vulnerable to simultaneous retries.
-        if (!idempotencyService.tryStartProcessing(idempotencyKey)) {
+        if (!idempotencyService.tryStartProcessing(scopedKey)) {
             writeInProgressResponse(response);
             return;
         }
@@ -89,12 +94,12 @@ public class IdempotencyFilter extends OncePerRequestFilter {
                 String responseBody = new String(
                         wrappedResponse.getContentAsByteArray(), StandardCharsets.UTF_8);
                 if (!responseBody.isBlank()) {
-                    idempotencyService.store(idempotencyKey, responseBody);
+                    idempotencyService.store(scopedKey, responseBody);
                     log.debug("[IdempotencyFilter] Stored idempotency response: key={}, status={}",
                             idempotencyKey, status);
                 }
             } else {
-                idempotencyService.clearInFlight(idempotencyKey);
+                idempotencyService.clearInFlight(scopedKey);
             }
 
             // Always copy the wrapped response body back to the real response

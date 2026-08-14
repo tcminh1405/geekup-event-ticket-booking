@@ -43,4 +43,6 @@ public class BookingResponse {
 
     @Schema(description = "Booking creation timestamp", example = "2024-01-15T10:30:00")
     private LocalDateTime createdAt;
+
+    private boolean suspicious;
 }

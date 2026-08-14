@@ -21,6 +21,7 @@ Tài liệu này định nghĩa rõ ràng các giả định (Assumptions), ph�
 - **Payment Gateway thực tế**: Không kết nối thực tế với VNPay / Momo / Stripe. Sử dụng `MockPaymentGateway` trả về trạng thái ngẫu nhiên hoặc theo cấu hình.
 - **Thông báo thời gian thực (Push Notifications)**: Không gửi Email xác nhận vé, tin nhắn SMS OTP hay WebSocket notification.
 - **Tạo mã Barcode / QR Code**: Không dựng sinh mã QR cho vé.
+- **Fraud detection tự động**: Không tích hợp fraud engine hay payment-provider signals. Operator có thể đánh dấu/xóa đánh dấu booking nghi vấn, kèm lý do, qua `PATCH /api/v1/admin/bookings/{id}/suspicion` và lọc `?suspicious=true`.
 - **Đa tiền tệ (Multi-currency)**: Hệ thống mặc định tính toán trên đơn vị tiền tệ **VND**.
 
 ---

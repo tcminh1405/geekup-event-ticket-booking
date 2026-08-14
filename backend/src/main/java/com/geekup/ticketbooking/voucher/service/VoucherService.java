@@ -14,6 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -158,8 +160,20 @@ public class VoucherService {
                     .build();
 
         } finally {
-            // Step 9 — Release lock
-            voucherLockService.releaseLock(lock);
+            // When this method joins BookingService.reserve's transaction, do
+            // not expose the voucher until its used flag and campaign quota
+            // are committed. Otherwise another request can read stale data.
+            if (lock != null && TransactionSynchronizationManager.isSynchronizationActive()) {
+                RLock acquiredLock = lock;
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCompletion(int status) {
+                        voucherLockService.releaseLock(acquiredLock);
+                    }
+                });
+            } else {
+                voucherLockService.releaseLock(lock);
+            }
         }
     }
 

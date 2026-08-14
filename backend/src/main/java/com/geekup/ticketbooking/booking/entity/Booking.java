@@ -14,7 +14,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "bookings")
+@Table(name = "bookings", uniqueConstraints = @UniqueConstraint(
+        name = "uq_bookings_user_idempotency_key", columnNames = {"user_id", "idempotency_key"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -45,8 +46,15 @@ public class Booking {
     @JoinColumn(name = "voucher_id")
     private Voucher voucher;
 
-    @Column(unique = true, nullable = false)
+    @Column(nullable = false)
     private String idempotencyKey;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean suspicious = false;
+
+    @Column(length = 500)
+    private String suspicionReason;
 
     private LocalDateTime paymentDeadline;
 

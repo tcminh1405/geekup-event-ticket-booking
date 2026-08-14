@@ -251,6 +251,16 @@ public class AdminService {
         return toBookingDetailResponse(saved);
     }
 
+    @Transactional
+    public BookingDetailResponse updateBookingSuspicion(Long bookingId, boolean suspicious, String reason) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("BOOKING_NOT_FOUND",
+                        "Booking with id " + bookingId + " was not found."));
+        booking.setSuspicious(suspicious);
+        booking.setSuspicionReason(suspicious ? reason : null);
+        return toBookingDetailResponse(bookingRepository.save(booking));
+    }
+
     // =========================================================================
     // Voucher Admin
     // =========================================================================
@@ -393,6 +403,9 @@ public class AdminService {
             if (filter.getConcertId() != null) {
                 predicates.add(cb.equal(root.get("concert").get("id"), filter.getConcertId()));
             }
+            if (filter.getSuspicious() != null) {
+                predicates.add(cb.equal(root.get("suspicious"), filter.getSuspicious()));
+            }
             if (filter.getCreatedFrom() != null) {
                 predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), filter.getCreatedFrom()));
             }
@@ -438,6 +451,7 @@ public class AdminService {
                 .paymentDeadline(booking.getPaymentDeadline())
                 .paymentTimestamp(booking.getPaymentTimestamp())
                 .createdAt(booking.getCreatedAt())
+                .suspicious(booking.isSuspicious())
                 .build();
     }
 
@@ -467,6 +481,8 @@ public class AdminService {
                 .discountAmount(booking.getDiscountAmount())
                 .voucherCode(voucherCode)
                 .idempotencyKey(booking.getIdempotencyKey())
+                .suspicious(booking.isSuspicious())
+                .suspicionReason(booking.getSuspicionReason())
                 .paymentDeadline(booking.getPaymentDeadline())
                 .paymentTimestamp(booking.getPaymentTimestamp())
                 .createdAt(booking.getCreatedAt())

@@ -15,7 +15,7 @@
 
 1. Identify the owning feature package and add request/response DTOs in its `dto` package. Apply Jakarta validation annotations to the request.
 2. Add/reuse a repository method only when it represents a database operation. For a concurrent state/inventory change, prefer a conditional `UPDATE ... WHERE current_state = ...` or `WHERE available_quantity >= ...` query.
-3. Implement the business use case in a service. Add `@Transactional` at the service method, not at the controller. Do not call an external system while holding a transaction unless that trade-off is deliberate and documented.
+3. Implement the business use case in a service. Add `@Transactional` at the service method, not at the controller. Do not call an external system while holding a transaction unless that trade-off is deliberate and documented; the in-process mock payment gateway is the documented exception in this assignment.
 4. Add the controller endpoint with an OpenAPI `@Operation` and the appropriate headers. Customer actions use `X-User-Id`; operator actions additionally require `X-Role: ADMIN` or `OPERATOR`.
 5. Return `ApiResponse.success(...)`. For expected failures, throw `ResourceNotFoundException`, `ConflictException`, `ValidationException`, `ForbiddenException`, or another existing application exception.
 6. Add tests for the rule and update the Postman collection if the endpoint is user-testable.

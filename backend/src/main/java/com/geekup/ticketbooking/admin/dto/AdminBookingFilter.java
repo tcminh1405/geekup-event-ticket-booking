@@ -25,6 +25,9 @@ public class AdminBookingFilter {
     @Schema(description = "Filter by concert ID", example = "1")
     private Long concertId;
 
+    @Schema(description = "Filter bookings flagged for operator review", example = "true")
+    private Boolean suspicious;
+
     @Schema(description = "Filter bookings created on or after this timestamp", example = "2024-01-01T00:00:00")
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
     private LocalDateTime createdFrom;
