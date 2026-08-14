@@ -353,6 +353,7 @@ public class AdminService {
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("generated", count);
+        result.put("codes", vouchers.stream().map(Voucher::getCode).sorted().toList());
         return result;
     }
 
